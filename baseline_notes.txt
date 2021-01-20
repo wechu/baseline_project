@@ -1,0 +1,249 @@
+
+Notes for the understanding baselines project
+
+--- Apr 10, 2020
+As I'm going through the existing literature on convergence of policy gradients, it seems like there are no results concerning stochastic gradients with natural gradient step size, where the variance can be unbounded.
+
+To make the story cleaner, here are some results that should be shown:
+- The variance of the updates can be infinite as the policies become deterministic.
+- The direct parameterization with projected SGD can also lead to nonconvergence (this is a lot more obvious).
+
+
+--- Apr 5, 2020
+Unfortunately, I haven't made much progress on this project. Ok, no point in crying over spilt milk so let's get going.
+Well, let's attribute it to the fact that I'm in quarantine at home and it's been slightly depressing which has not helped my motivation at all. Also, I've been spending too much time in my room, which also kills productivity.
+
+Next steps:
+- Three-armed bandit: Check that the theoretical result fo nonconvergence actually holds for rewards 1, 0.7, 0.
+- Three-armed bandit: Check what happens with the value function as a baseline. Does it avoid nonconvergence?
+
+- Fix up proofs of regret for two-armed bandit and perturbed min-variance baseline
+- Write up a summary of previous convergence results and why they apply or not
+
+
+
+--- Mar 19, 2020
+At this point, I have to write up the newer set of results.
+I think it is worthwhile to create a file which contains blocks of code to reproduce each of these small experiments. It's a lot easier to reproduce them, especially when they involve sweeping over certain parameters. Currently, I simply rerun the same code in the console after changing a hyperparameter and produce a variety of plots but it would be a lot easier to just run a block of code. This will take a bit of time to go back through things but that should be fine.
+
+--- Mar 16, 2020
+To look into today:
+- Adding noise to the rewards
+- N-armed bandit
+Ok, didn't get to do these yet but I did get and write up some results for entropy regularization, clipping and value functionas the baseline.
+
+To think about:
+- Using a different behaviour policy
+Using a behaviour policy that explores more could fix the variance issues and lead to faster convergence? Eg: Using the uniform policy in the bandit case.
+- Adapting the baseline at every epoch based on what was seen?
+We may want to swap between commital and noncommital behaviour depending on what was observed during the previous/current episode.
+Actually, if we think of exploration from the point of view of a tree search algorithm, then we want to visit promising branches of the tree deeply and then try out new things. So, to achieve such a behaviour with policy gradient methods, we might wnat to make the baselines committal for some number of steps in a trajectory and then noncommital later on. Any choice of baseline will still leave the policy gradient unbiased as long as it does not depend on the action chosen.
+
+Read:
+- TRPO paper
+- GAE paper
+- Mirage of action-dependent baselines
+
+--- Mar 15, 2020
+Yesterday, I wrote a summary of findings.
+Some things that are worth look into (even in the bandit case):
+- Effect of entropy regularization (this is an obvious question to any outsider)
+- Effect of clipping the updates
+For this, I noticed that for the negative baselines, often the learning curves that end up near 0 get there by jumping down from a larger value. So, clipping may lead to less runs getting close to 0 by limiting the size of these jumps. Additionally, it may have the sideeffect that when p is close to 0, it won't be possible to jump back completely.
+Preliminary results show that this is indeed the case. Looking at the value function, we get a smoother curve without the weird dip near p=1  and it also decays faster closer to p=0. This does make sense since we are in fact changing the expected update when p is close to 0 or 1.
+- Try the regular value function as a baseline
+Tried some experiments in the two-armed bandit. I found that the convergence problem can still happen with negative baselines (and natural gradient).
+Looking at the update rules, choosing the worst action gives an update of (p+\eps)/(1-p) where \eps is the perturbation to the value function. So we see that if -\eps > p, then we the update will be negative and it's magnitude increases as we do updates due to the 1-p in the denominator. Thus, the problem is even worse here than for the min-variance baseline which results in only steps that are slightly larger than some constant while here we have steps that grow with 1-p. Hence the value function baseline when perturbed might be worse than the min-variance baseline in the sense that there is greater probability of converging to the wrong action if we initialize p to be too small (compared to \eps) by chance.
+In a more realistic setting, we can treat p to be the initialize policy probability and \eps to be the error in the value function. So, underestimating the value function in this case could lead to really bad behaviour sometimes, especially if p starts out low.
+Another way we can view this phenomenon is that the value function is the expected return of the current policy so that if we the perturbation is we make an update that increases the probability of a bad action, then this would lower the expected return, making the policy gradient algorithm even more commital. Hence, we could spiral down into increasing bad actions probabilities more and more often.
+
+--- Feb 25, 2020
+Nice! we have some concrete results. We showed that for the two-armed bandit a constant negative baseline can lead to choosing the worst action forever. This proof also works for the variance-minimizing baseline sufficiently perturbed. This is sufficient to show that we incur linear regret, because there is some positive probability of getting constant regret at each step.
+
+Things to look into next:
+- Negative baseline linear regret. The above result applies when we perturb the optimal baseline by more than -1, but if we choose a perturbation between 0 and 1, empirically it seems like there is still linear regret but at a slower (linear) rate. Can we prove this? Nicolas has already started working on this a bit and it seems like it should be possible.
+- Do we achieve sublinear regret for deterministic policy gradient on the two-armed bandit? I think the answer must be yes (check Sham Kakade's work on policy gradient).
+- Negative baseline could be better in some cases? When we are close to the optimum maybe in expectation it converges very fast? Faster than positive baselines?
+
+- Compare to entropy regularization. What kind of result can we show that could indicate that baselines are a better way of dealing with variance than just entropy? Entropy has the bad side effect or preventing deterministic policies even though they may be good policies. High entropy policies may also be unable to perform directed exploration.
+- What can we say about regular (non-natural) policy gradient for the bandit case? Here the size of the updates shrink as you get closer to a deterministic policy, so the variance is bounded.
+- Is variance the right quantity to be looking at to consider progress per step in SGD? Clearly there are other things that aren't captured by variance. Alternatively, what is a good metric that could be optimized other than variance?
+- For three-armed bandit, is there any baseline that leads to sublinear regret?
+
+--- Feb 13, 2020
+Some things to try for the theory:
+- Revisit the performance after T steps being given by either the expected update but multiplied by 1 - prob of catastrophe. This is like saying that the regular analysis holds usually except in certain special cases, so we should take into account that probability.
+Hmm actually this doesn't work because the regular analysis for SGD can't be applied here due to the unbounded variance. Usually, we would assume that there is a bound on the variance for all possible parameter values. But this is not the case in the two-armed bandit. Maybe we need to add assumptions about the individual samples that we can obtain.
+- Derive expression for two-armed bandit for variance as a function of x
+
+
+--- Feb 7, 2020
+Talked to Nicolas today.
+We discussed some directions to proceed in.
+The next immediate goal would be to prove something about the positive/negative baseline to show that negative baselines might be better.
+
+--- Feb 4, 2020
+I will migrate my notes to a different platform once I've decided which one to use.
+I basically need 3 features: text editing, easy plot inclusion and support for math (i.e. latex)
+Based on a quick search for recommendations, I will probably take a look at Evernote and Lyx and see if they fit my needs.
+
+Current directions and todos:
+- For the random walk model, write down the analysis for the negative baseline and match it with the analysis for a positive baseline. Make sure to match the variance of the updates for the negative baseline. Variance after two steps?
+- Write up the counterexample of the min-variance baseline doing poorly in the three-armed bandit
+- Run experiments for a DAG-structured MDP where we can compute the min-variance baseline with perturbations
+- Write up a summary of all previous experiments done: two-armed bandit, optimization as an MDP, bgbgbgb sequences of actions, distribution after n steps, ...
+- What kind of theory result can we try to prove for the two-armed bandit?
+- Do the ratios of probabilities after one update give any indication for the rate of decrease or whether the policy will get stuck?
+
+Some results:
+- Running random walk with -1 or +mx steps (m is a constant) and checking the prob of being less than the initial state at the end of 300 steps, Pr(less than x_1).
+I find that decreasing m makes Pr(less than x_1) decrease (this is contrary to Nicholas' initial hypothesis) but it increases Pr(x_1 < 0), the prob of being negative. This could simply be because now it takes more rightward steps to reach 0. Actually, when x_1 = -50, choosing m=1 has higher probs for both than choosing m=0.5, which supports my previous hypothesis. It seems like the greater the value of m, the more pronounced the effect of getting stuck going left is.
+
+--- Jan 21, 2020
+After the previous discussion with Nicolas, we have some more things to investigate:
+- We came up with a random walk which can model the behaviour of SGD in the two-armed bandit. The idea is to have only integer-valued states and the probability of transitions depends on the state. For the neg perturbation, for the state x < 0, we have -1 with some probability 1-p and -x (going back to 0) with probability p. This has the behaviour of increasing the probability of going left the further left the state is. I've coded it up in RandomWalk.py so check it out for more details.
+My preliminary experiments show that this model seems to capture the important points of the two-armed bandit, like having some chance of drifting left forever despite the expected update being moving right.
+Next, I will code the pos perturbation random walk (which I expect to be reasonable). Then, I will attempt to analyze these theoretically. Since this is a greatly simplified setting, it should be possible to do this.
+
+- Another possible model of the two-armed bandit is to have a distribution over quadratic functions to minimize (Say the expected loss function is a quadratic around 0). Then, the further the current parameter is from 0, the more likely it is to sample an even further quadratic function to minimize at the next step. This could also cause the iterates to 'drift' away from the optimum x=0. This may be easier to analyze theoretically because there is a smooth distribution over possible next parameter values instead of just 2 as in the two-armed bandit. (This may be similar to considering a bandit with a continuous action that we sample at each step)
+Actually, now that I write this, maybe we could analyze the two-armed bandit with stochastic rewards. That may also 'smooth' things out and make it easier to analyze theoretically.
+
+- Computing the minimum-variance baseline for small MDPs
+We want to be able to compute the min-variance baseline on a small MDP to be able to carry out the same analysis as we did for the bandit case. We can write down the min-variance baseline in closed-form on paper but the problem is that it involves an expectation over all trajectories. For a gridworld (or any MDP where we can return to a past state), this is impossible since there are trajectories of arbitrary length that are possible.
+Valentin told me that to get around this, he just considered tree-structured MDPs where there were only finitely many trajectories.
+An alternative I thought of would be to try to truncate the trajectories in the expectation at some point to get a lower bound. We could even get a desired error tolerance by taking an upper bound on the rewards and log probs, then using the discount factor to bound their sum. This could be problematic due to the bound on the log probs though (which may not be possible to get).
+
+- What is the optimal baseline?
+This project indicates that variance is not the whole story behind baselines. So, it may be possible that the 'optimal' baseline for learning is not the variance-minimizing one. Another possible candidate is a baseline that sits between the value of the best action and the second-best action. In that way, no matter which arm is sampled, the probability of the best action is guaranteed to increase. Hence, this would lead to monotonic improvement at every step, a desirable property.
+On the other hand, the minimum variance baseline may still have the same issue we observe with negative perturbation baselines. Perhaps due to sampling, it could be stuck 'converging' to a suboptimal arm.
+Note that, in general, the minimum variance baseline is not necessarily greater than the second best value. For example, take a three-armed bandit with equal prob on each arm. If the rewards are 0, 0.7 and 1.0, the min-variance baseline is ~0.567 which is less than 0.7. But does this mean we could get stuck at a bad arm? What happens when our policy assigns most of the prob to a suboptimal arm? Also, what happens when rewards are stochastic? Maybe we want to get baselines that improve the policy with high-probability even though they may not be the greatest amount. i.e. there could be a tradeoff between fast and stable optimization.
+Todo think about this more and run experiment
+
+
+
+--- Jan 15, 2020
+Look into Jan Peters optimal baseline for Reinforce. It seems to be not state-dependent. How can we derive the variance-minimizing state-dependent baseline for Reinforce.
+Also, read up about the action-dependent baselines.
+
+--- Jan 14, 2020
+What to try next?
+- Taking a look at the first experiments I ran and their learning curves, it is difficult to draw any conclusions. The experiment was run using a learned value function as the baseline plus some perturbation. For smaller learning rates, there is not much of a difference between the various perturbations.
+For larger learning rates, larger perturbations cause the learning curves to jump all over the place (presumably due to the larger magnitude gradients). The best baseline perturbation seems to be 0.5 out of {-1.5, -1., -0.5, 0.0, 0.5, 1.0, 1.5} but it's difficult to tell. Right now, I need to smooth over the returns of multiple (25) episodes to be able to discern any trends.
+
+There are multiple issues that make analyzing these experiments difficult and would need to be addressed. Some issues to think about (I've written about these in my notebook):
+- Termination condition
+Using a finite horizon with Reinforce is currently necessary to ensure that episodes terminate. It is possible that a learned intermediate policy never reaches the goal (or does so with low probability).
+One idea to avoid this problem is to use actor-critic methods which can update the policy within an episode.
+- Optimal baseline usage
+Right now, I don't make use of the optimal (variance-minimizing) baseline. This is because it is quite difficult to compute in general MDPs. I could instead design an MDP where the optimal baseline is computable in closed-form. For example, in a tree or DAG-structured environment we can compute the probability of each path and hence compute the weightings for the optimal baseline easily (||grad log \pi||^2)
+- Evaluation
+I'm currently just recording the return of each episode to evaluate the agent but it is a very noisy signal. It could be better to compute a more exact measure of how good the policy is at each step. This could be done through dynamic programming for small gridworlds or perhaps through Monte-Carlo. MC could be quite noisy though.
+
+
+Other thoughts:
+- According to some theory paper (forget the name), it seems like positive perturbations to the state-action value function can lead to better exploration.
+- Look into compatible features and Pierre-Luc's paper on integrating all actions. It seems like there are other baselines that can be used which may have benefits in certain settings. This could be related work as another alternative to the maximal variance-reducing baseline. There could be other notions of 'optimal' baseline.
+- Maybe it's worth coding up a graphical version of the gridworld to be able to visualize the policies more easily
+- An optimal baseline might be one that is between the the value of the optimal action and the second best one. In this way, gradients always point in the right direction i.e. increase the prob of the optimal action and decrease the prob of a suboptimal action.
+Can I come up with an environment where the variance-minimizing baseline does worse than this above baseline? Not in two-armed bandit for sure, since the variance-minimizing baseline just gives gradient descent. Maybe in the N-armed bandit? I think in principle it should be possible. As long as we can ensure that the baseline is chosen such that there is a possiblity of moving in the parameters in the wrong direction with increasingly high probability, it could happen.
+- I could look into the theory more. Can we treat this problem as optimization on the probability simplex? where samples are obtained with those probabilities?
+The issue is for the softmax parameterization, the actual parameters are in R^n but we then convert those into probabilities. But maybe we can just think of the optimization problem directly in probabilities..? and somehow account for the softmax constraint?
+
+Experiments ran:
+- I realized there was a mistake in my Reinforce code (I forgot to include the gamma^t) so I have to rerun the experiments. We'll see how they go before I commit to any next steps.
+
+--- Jan 7, 2020
+- Think about analyzing the distribution of parameters over time and perhaps computing the Kantorovich distance between the stochastic gradient descent iterates and the expected gradient steps. Actually, maybe not compared to the expected gradient steps since that is not a good baseline to compare against. It would perform too well due to the lack of noise. Maybe we can compare against a deterministic version of the expected SGD path but which is appropriately 'slowed-down' to account for the variance due to noise. One idea is to use something like the usual bound for progress of SGD to choose step sizes (accounting for variance). In this way, progress is slowed down in areas of high variance.
+
+Gridworld experiments:
+- Maybe I should try an experiment where I preset the first episode.
+In other words, I just assume that the agent is unlucky and reaches the close but suboptimal goal state at first. Then, maybe different baselines can make a bigger difference.
+
+--- Nov 11, 2019
+- Back to trying out the alternating good and bad actions in the two-armed bandit.
+After fixing the bug, I reran this experiment.
+The results are presented in the order described in the previous post (starting from gb*8, then followed by b&g swapped, for a total of 8 experiments)
+For step_size=0.3, init_param=0.0, natural gd, sigmoid, I get:
+    perturb = -1: final performance [0.548, 0.451, 0.0, 0.0, 0.739, 0.819, 0.93, 0.993], with probs array([1.784e-07, 4.717e-07, 9.711e-06, 1.150e-03, 3.342e-07, 1.321e-06, 4.021e-05, 2.621e-03])
+    perturb = +1: final performance [1.0, 1.0, 0.98, 0.0, 1.0, 1.0, 1.0, 1.0], with probs array([4.963e-44, 1.482e-41, 7.009e-06, 3.582e-30, 9.728e-53, 5.364e-53, 4.883e-53, 4.883e-53])
+
+So what can we see?
+For one, the previous finding actually still holds. The parameters tend to end up at an extreme if you first take one action many times then the other one multiple times (for both pos/neg perturbations). i.e. ggggggggbbbbbbbb ends with 0.0 return and the opposite setting ends up with close to 1.0 return.
+Next, looking at the probabilities, the +1 baseline assigns very small probabilities to certain sequences of actions, much smaller than the -1 baseline. As a comparison, if the prob was 0.5 for each action, then 0.5^16 = 1.52587890625e-05. I think this is because once p ~= 1, then the probability of picking the other action is extremely small.
+Also, it is really surprising that, for the same sequence of updates, it seems like the +1 baseline does better. Is this true for all sequences?? That could mean that there's something about overestimating the baseline which always yields better optimization trajectories in general?
+
+
+--- Nov 8, 2019
+
+- Trying out Nicolas' suggestion about alternating good and bad actions in the two-armed bandit.
+I tried sequences of 16 actions: gb*8, ggbb*4, ggggbbbb*2, ggggggggbbbbbbbb. And also with b and g swapped.
+He was hoping that we would see that having alternating sequences bg would be more effective than a long run of bad then good actions in terms of the performance at the end. But, in fact, I saw the opposite! Surprisingly, the last sequence with many in a row ends up with a larger reward (it is less probable though). I think this would be step size dependent. My hypothesis is that the IS ratios cause the parameters to bounce back in the other direction with a large magnitude, which is why after you've taken a bunch of bad actions, you make more progress with many good actions in a row.
+Note that this effect also happens in the other direction. If you take g 8 times in a row then b 8 times in a row, you end up with lower performance than if you alternated between taking each action once.
+
+Wait, this previous finding is all wrong. There was a bug somewhere in the code.
+todo:
+- Check the parameter distribution after k steps -> fix the bug
+- Redo above experiment after bug is fixed
+
+--- Oct 31, 2019
+Added natural gradient descent with sigmoid functions for the 2-armed bandit.
+Random observations/comments:
+- The phenomenon we observe is essentially that noise by itself can cause 'local optima' even if the expected loss surface is nice (as in the 2-armed bandit). Even for natural gradient descent, starting near p=0 leaves the iterates stuck there, which is really surprising to me. To be honest, I don't understand why this is the case yet.
+
+- Trying to find some measures that can describe the phenomenon. Of course, quantities like the average reward after n steps will be helpful but those aren't easily amenable to theoretical analysis. We would like to find a quantity that depends only on thigns that occur in a couple of timesteps.
+
+- Also, it seems like the step size plays a crucial role. Since the effect disappears when step sizes are very small, the step size has to be part of the equation here. So, it seems like
+
+- Brainstorming some candidate measures:
+    - Probability of increasing return? This could make sense since
+
+    - Probability of leaving a small region in parameter space? This could capture a notion of 'local optima' even though it has nothing to do with the curvature of the true objective. There could still be some points that effectively act like attractors due to the noise they induce (this is possible because the noise is not the same at every parameter value). In the two-armed bandit, both 0 and 1 are 'attractors' when the baseline underestimates the rewards, so perhaps we can write down some theoretical bound.
+    We would like to be able to write down something like the probability of crossing a certain threshold (of return or prob of choosing the good action) for all possible parameter values. Then,
+
+    - Probability of increasing return in two steps? This can take into account the next parameter value in addition to the current one.
+
+
+
+--- Oct 3, 2019
+It occured to me that the optimal baseline depends on p. So, the previous pos and neg reward schemes were not fair since the variances could differ.
+I rederived the optimal baseline and, to my surprise, it was not the average reward (which I thought was common knowledge). In fact, I in Sergey Levine's class notes that it is actually a weighted average reward, where the weights correspond to the norm of the gradient of log \pi. In my case, that would just be 1/p or 1/(1-p). This formula coincided with own calculations which found that the optimal baseline for the two-armed bandit was: b* = r1*(1-p) + r2*(p)  (not the expected reward!).
+
+Anyways, after deriving this optimal baseline, I also checked that indeed, perturbing it by +/- \epsilon leads to the same variance of the gradient estimate. (Though I haven't finished checking it for the general case i.e. with policy gradients)Some experiments indeed comfirm that, if I pick the step size very small, the variance of the trajectories are virtually identical for both pos and neg pertubations.
+But the behaviour for larger step sizes is not the same. I choose the epsilon large enough so that adding positive epsilon makes both rewards positive and the reverse for the negative epsilon. With these settings and initializing p to 0.1 (close to 0), I confirm the previous findings that the positive rewards lead to getting stuck at p=0 some significant portion of the time, while negative rewards makes the final distribution of p to be much more spread out (though most of the probability mass is near 1).
+
+--- Oct 2, 2019
+Next, I want to try what happens in the N-armed bandit.
+Here I expect to see markedly different qualitative behaviour. Let me think about what should happen in theory... I did write some stuff in my notebook. Can check it out later.
+
+- The variances for the pos and neg settings are not the same for all values of p. In fact, when p < 0.5, the pos setting has more variance while the opposite is true for p > 0.5.
+
+
+--- Sep 13, 2019
+I ran some experiments on the two-armed bandit to test the difference between having -1 and -2 rewards vs. +2 and +1 rewards. These two settings would correspond to different baselines.
+
+Let A be the better arm and B be the suboptimal arm. Also let p be the probability of choosing arm A.
+Some observations:
+- For the positive reward setting, once the agent reaches p=1 or p=0, the agent is stuck. This confirms what we expect from theory (we never sample the other action anymore). This is the 'committal' behaviour.
+- For the negative reward setting, with constant stepsizes, the agent never fully converges to a value. At best, the probability will jitter around 1. Note that, in this case, p is only increased when arm B is chosen. This happens less and less often as p is closer to 1. This is the 'noncommital' behaviour.
+
+- One key parameter is the step size. For the positive reward setting, the larger the step size the more likely the agent is to fall into one of the local optima (p=0 or p=1). In the extreme case where the step size is infinite, whichever action is sampled first is the one that the agent picks forever. I think that larger step sizes make the impact of the initial point more important. The reason is that with larger step sizes, the initial sampling distribution will have a larger effect due to the fact that sampling an action increases its probability of being chosen further.
+On the other hand, for the negative reward setting, an infinite step size would cause the policy to bounce back and forth between p=0 and p=1. So it seems like the larger the step size, the wider the 'region' of convergence will be (ie. the region where the parameters will stay with high probability).
+
+- An other observation is that for very small step sizes, there still seems to be a difference between the positive and negative reward settings. Even though the variance of the gradient for both settings is the same, looking at plots it seems like the variance of the parameters over time is higher for the positive reward setting. ie. the distribution of the parameters after many optimization steps seems to be more spread out. Indeed, looking at plots of the variance over time, it definitely seems like it increases over time at a faster rate for the positive reward setting. I wonder if there is a theoretical explanation for this...
+OK never mind. Looking into this a little deeper, it seems like the initial parameter makes a difference.
+If p < 0.5, then pos rewards lead to parameters with higher variance over time than neg rewards. But, if p > 0.5, then it's the opposite. This phenomenon seems to occur even when I set the step sizes to be very small, so maybe there is a way to analyze this using some kind of stochastic process? stochastic differential equations perhaps? I would have to read more about those to make sense of it.
+
+- For very small step sizes, I also tried looking at the partial autocorrelation function but it didn't seem very interesting. It was just very high (close to 1) for a lag of 1 and then hovered around 0 for other lags.
+
+- Right now, I'm currently using projected SGD. This is why it is possible to get p=1 or p=0. Would the story be different if I instead used the softmax (sigmoid) to parametrize the policy? By preventing the deterministic policies, maybe it would have better optimization dynamics? At the same time, to me it seems appealing to use deterministic policies sometimes.
+
+Theory:
+- How can we explain the behaviour of the algorithm in the case of pos rewards? When p is initialized close to 0 and the step size isn't too small, there is a region around p=0 where the parameters are likely to eventually land at p=0. This is not accounted for by the standard ODE approach since that relies on the expected dynamics. Here, the expected gradient simply says that we should increase p at any value of p. The problem is that it doesn't apply since the noise can have unbounded variance as we approach p=0 (the ODE approach requires bounded variance). So it
+
+Random thought: Is the 'split' setting (+0.5, -0.5) better than (+1, 0) ? 'split' leads to zero variance in the gradient but does that really matter?
+
+Todo:
+- Try the sigmoid policy instead
+- Try the other reward schemes
+- Try the N-armed bandit
+- Try the softmax
