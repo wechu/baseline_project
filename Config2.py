@@ -1,6 +1,6 @@
 #####
 # Configuration file for the experiments
-#
+# second one for parallel experiments
 #####
 import time, datetime
 import numpy as np
