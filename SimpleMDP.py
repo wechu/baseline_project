@@ -186,14 +186,19 @@ class FourRoomsEnv:
         return False, 0.0
 
     def _transition(self, state, action):
-        # returns the next state given a state and action
+        # returns the reward and next state given a state and action
         # note the transitions are deterministic
         new_state = state + self.steps[action]
 
         if self._check_valid_pos(new_state) and not self._check_hit_wall(state, action):
             new_state = state
 
-        return new_state
+        reached_goal, reward = self._check_goal(new_state)
+        done = False
+        if reached_goal:
+            done = True
+
+        return new_state, reward, done
 
     def step(self, action):
         # if an action brings you outside the grid, don't move

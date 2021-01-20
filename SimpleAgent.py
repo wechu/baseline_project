@@ -131,25 +131,29 @@ class PGAgent:
                 for j in range(0, env.gridsize[1]):
                     for a in range(0, 4):
                         transitions[(i,j,a)] = env._transition(state=(i,j), action=a)
+                        # note: transition returns (next_state, reward, done)
 
             max_change = 999
             while max_change > tolerance:
                 for i in range(0, env.gridsize[0]):
                     for j in range(0, env.gridsize[1]):
                         for a in range(0, 4):
-                            next_state = transitions[(i, j, a)]
+                            next_state, reward, done = transitions[(i,j,a)]
+
+                            # next_state = transitions[(i, j, a)]
                             policy_next_state = self.get_policy_prob(next_state)
 
                             # compute bellman update
-                            prev_q = q_values[(i,j,a) ]
-                            q_values[(i,j,a)] = np.sum(q_values[tuple(next_state)] * policy_next_state)
+                            prev_q = q_values[(i,j,a)]
+                            if done:
+                                q_values[(i,j,a)] = reward
+                            else:
+                                q_values[(i,j,a)] = reward + self.discount * np.sum(q_values[tuple(next_state)] * policy_next_state)
 
                             change = abs(q_values[(i,j,a)] - prev_q)
                             if change > max_change:
                                 max_change = change
-
-
-
+            return q_values
 
         elif env.name.lower() == 'gridworld':
             raise AssertionError('Solving q-values Not implemented for gridworld')
@@ -158,6 +162,9 @@ class PGAgent:
         # returns the min-variance baseline for all states
         # requires as input the q-value estimates (could be the true q-values)
         if env.name.lower() == 'fourrooms':
+            # assumes q_values are given as an array with (state, state, action)
+            self.get_policy_prob(state)
+
 
         elif env.name.lower() == 'gridworld':
             raise AssertionError('Solving q-values Not implemented for gridworld')
