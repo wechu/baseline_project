@@ -24,7 +24,7 @@ class Config:
         self.logged_values = ['returns', 'action_entropy_trajectory', 'state_visitation_entropy_online', 'state_visitation_entropy_eval']
         # RS, IS; constant0 policy; local detect features
 
-        self.algorithms = ['reinforce']
+        self.algorithms = ['reinforce']  # ('reinforce', 'ac_true_q')
         self.algs_sweep_params = {'reinforce': OD([("step_size", [0.1]),
                                                    # ("rew_step_size", [0.0]),
                                                    ("perturb", [-1, -0.5, 0, 0.5, 1])])
@@ -34,7 +34,7 @@ class Config:
                                        ('discount', [0.99]),
                                        ('horizon', [300])])
 
-        self.alg_other_params = {'seed': 123, 'baseline_type': 'minvar'}
+        self.alg_other_params = {'seed': 123, 'baseline_type': 'minvar'}  # 'baseline_type' is ('minvar',
         # TODO when adding ADAM, think about where to put beta1 and beta2
 
         self.environments = ['fourrooms']  # can put multiple envs

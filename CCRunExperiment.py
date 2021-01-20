@@ -159,8 +159,12 @@ for i_run in range(num_runs):
         seed = config.alg_other_params['seed'] + args.run_index
     else:
         seed = config.alg_other_params['seed'] + i_run
+
+
+
+    baseline_type = config.alg_other_params['baseline_type']
     agent = SimpleAgent.PGAgent(num_actions=num_actions,
-                                discount=hyperparams['discount'], baseline_type="minvar", seed=seed, env=env)
+                                discount=hyperparams['discount'], baseline_type=baseline_type, seed=seed, env=env)
 
 
     # training loop
@@ -191,7 +195,12 @@ for i_run in range(num_runs):
                 break
 
         # do updates
-        agent.update_reinforce(trajectory, hyperparams['step_size'],  hyperparams['perturb'])#, hyperparams['rew_step_size'])
+        # could put this all within the agent (but then you have to pass the algorithm)
+        if args.alg == 'reinforce':
+            agent.update_reinforce(trajectory, hyperparams['step_size'],  hyperparams['perturb'])#, hyperparams['rew_step_size'])
+        elif args.alg == 'ac_true_q':  # actor-critic solving for the true q-values at each iteration
+            agent.update_ac_true_q(trajectory, hyperparams['step_size'], hyperparams['perturb'])
+
         # reset
         state = env.reset()
         print("ep", i_ep, "time", (time.perf_counter() - start_time) / 60, flush=True)

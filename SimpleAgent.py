@@ -82,6 +82,86 @@ class PGAgent:
 
         return
 
+    def update_ac_true_q(self, trajectory, step_size, perturb, rew_step_size=None):
+        # this is the actor-critic update with the true q-values
+        # trajectory is a sequence of transitions for one episode
+        # of the form ((s, a, r'), (s', a', r''), ...)
+        total_reward = 0
+        total_discount = self.discount ** (len(trajectory) - 1)
+
+        if self.baseline_type == 'minvar':
+            # we compute the minvar baseline for all states with the true q-values
+            q_values = self._solve_q_values()
+            minvar_baselines = self._compute_ac_minvar_baseline(q_values)
+
+        for transition in reversed(trajectory):
+            # gradient
+            state, a, r = transition
+            s = self._state_index(state)
+            onehot = np.zeros(self.num_actions)
+            onehot[a] = 1
+
+            total_reward = total_reward * self.discount + r
+
+            if self.baseline_type == 'avg':
+                baseline = self.avg_returns[s]
+                # update the avg returns
+                # 1 / (np.sqrt(self.visit_counts[s[0], s[1]]) + 1)  # could change the step size here
+                self.avg_returns[s] += rew_step_size * (total_reward - self.avg_returns[s])
+            elif self.baseline_type == 'minvar':
+                baseline = minvar_baselines[s]
+            else:
+                baseline = 0
+            self.visit_counts[s] += 1
+
+            self.param[s] += step_size * total_discount * (
+                        (total_reward - (baseline + perturb)) * (onehot - self.get_policy_prob(s)))
+            # note that this previous step has to be done simultaneously for all states for function approx i
+            total_discount /= self.discount
+
+    def _solve_q_values(self):
+        # uses dynamic programming to approximately solve for q-values within tolerance
+        tolerance = 1e-5
+        if env.name.lower() == 'fourrooms':
+            num_actions = 4
+            q_values = np.zeros((env.gridsize[0], env.gridsize[1], num_actions))
+            # cache all the possible transitions (assumes environment is deterministic)
+            transitions = dict()
+            for i in range(0, env.gridsize[0]):
+                for j in range(0, env.gridsize[1]):
+                    for a in range(0, 4):
+                        transitions[(i,j,a)] = env._transition(state=(i,j), action=a)
+
+            max_change = 999
+            while max_change > tolerance:
+                for i in range(0, env.gridsize[0]):
+                    for j in range(0, env.gridsize[1]):
+                        for a in range(0, 4):
+                            next_state = transitions[(i, j, a)]
+                            policy_next_state = self.get_policy_prob(next_state)
+
+                            # compute bellman update
+                            prev_q = q_values[(i,j,a) ]
+                            q_values[(i,j,a)] = np.sum(q_values[tuple(next_state)] * policy_next_state)
+
+                            change = abs(q_values[(i,j,a)] - prev_q)
+                            if change > max_change:
+                                max_change = change
+
+
+
+
+        elif env.name.lower() == 'gridworld':
+            raise AssertionError('Solving q-values Not implemented for gridworld')
+
+    def _compute_ac_minvar_baseline(self, q_values):
+        # returns the min-variance baseline for all states
+        # requires as input the q-value estimates (could be the true q-values)
+        if env.name.lower() == 'fourrooms':
+
+        elif env.name.lower() == 'gridworld':
+            raise AssertionError('Solving q-values Not implemented for gridworld')
+
     def _estimate_minvar_baseline(self, num_rollouts=100, importance_sampling=True):
         # uses rollouts to estmate the minimum-variance baseline
         # use importance sampling for better estimates
@@ -142,6 +222,7 @@ class PGAgent:
         minvar_baseline = np.sum(np.array(disc_returns) * np.array(gradlogprob_sums)) / np.sum(gradlogprob_sums)
         # print(minvar_baseline)
         return minvar_baseline
+
 
 
     def _state_index(self, state):

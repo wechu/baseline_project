@@ -25,7 +25,7 @@ class Config:
         self.logged_values = ['returns', 'action_entropy_trajectory', 'state_visitation_entropy_online', 'state_visitation_entropy_eval']
         # RS, IS; constant0 policy; local detect features
 
-        self.algorithms = ['reinforce']
+        self.algorithms = ['ac_true_q']
         self.algs_sweep_params = {'reinforce': OD([("step_size", [0.1]),
                                                    # ("rew_step_size", [0.0]),
                                                    ("perturb", [-1, -0.5, 0, 0.5, 1])])
@@ -42,6 +42,6 @@ class Config:
         self.env_params = [{"seed": None, "size": (5,5)}
                            ]  # this list matches the order of envs in self.environments,
 
-# config = Config()
-config = Config2.Config()
+config = Config()
+# config = Config2.Config()
 
