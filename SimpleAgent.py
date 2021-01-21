@@ -28,6 +28,7 @@ class PGAgent:
         self.rng = np.random.RandomState(seed)
         self.env = env  # this is needed to compute the minimum-variance baseline
 
+        self.q_values = None  # use this to cache previous q-values in ac_true_q
         pass
 
     def get_policy_prob(self, state):
@@ -121,10 +122,13 @@ class PGAgent:
 
     def _solve_q_values(self):
         # uses dynamic programming to approximately solve for q-values within tolerance
-        tolerance = 1e-5
+        tolerance = 1e-3
         if env.name.lower() == 'fourrooms':
             num_actions = 4
-            q_values = np.zeros((env.gridsize[0], env.gridsize[1], num_actions))
+            if self.q_values is None: # initialize array
+                self.q_values = 0.5*np.ones((env.gridsize[0], env.gridsize[1], num_actions))
+            q_values = self.q_values  # note this is a reference
+
             # cache all the possible transitions (assumes environment is deterministic)
             transitions = dict()
             for i in range(0, env.gridsize[0]):
@@ -135,25 +139,27 @@ class PGAgent:
 
             max_change = 999
             while max_change > tolerance:
+                # print("change", max_change)
+                temp_copy = q_values.copy()
                 for i in range(0, env.gridsize[0]):
                     for j in range(0, env.gridsize[1]):
                         for a in range(0, 4):
+                            # print(transitions[(i,j,a)])
                             next_state, reward, done = transitions[(i,j,a)]
 
                             # next_state = transitions[(i, j, a)]
                             policy_next_state = self.get_policy_prob(next_state)
 
                             # compute bellman update
-                            prev_q = q_values[(i,j,a)]
                             if done:
                                 q_values[(i,j,a)] = reward
+                                # print(reward)
                             else:
                                 q_values[(i,j,a)] = reward + self.discount * np.sum(q_values[tuple(next_state)] * policy_next_state)
 
-                            change = abs(q_values[(i,j,a)] - prev_q)
-                            if change > max_change:
-                                max_change = change
-            return q_values
+                max_change = np.max(np.abs(q_values - temp_copy))
+
+            return q_values.copy()
 
         elif env.name.lower() == 'gridworld':
             raise AssertionError('Solving q-values Not implemented for gridworld')
@@ -163,11 +169,22 @@ class PGAgent:
         # requires as input the q-value estimates (could be the true q-values)
         if env.name.lower() == 'fourrooms':
             # assumes q_values are given as an array with (state, state, action)
-            self.get_policy_prob(state)
+            num_actions = 4
+            baselines = np.zeros(tuple(env.gridsize), dtype='float')
+            for i in range(env.gridsize[0]):
+                for j in range(env.gridsize[1]):
 
+                    policy = self.get_policy_prob([i, j])
+                    baselines[(i,j)] = np.sum([self._weight_optimal_baseline(a, policy) * q_values[(i,j,a)] for a in range(num_actions)])
+            return baselines
 
         elif env.name.lower() == 'gridworld':
             raise AssertionError('Solving q-values Not implemented for gridworld')
+
+    def _weight_optimal_baseline(self, index, policy_probs):
+        denom = 1 - np.sum(np.square(policy_probs))
+        num = np.sum(np.square(policy_probs)) - policy_probs[index]**2 + (1-policy_probs[index])**2
+        return num * policy_probs[index] / denom
 
     def _estimate_minvar_baseline(self, num_rollouts=100, importance_sampling=True):
         # uses rollouts to estmate the minimum-variance baseline
@@ -246,18 +263,26 @@ if __name__ == '__main__':
     print('Running!')
     # gridsize = (5,5)
     step_size = 0.1
-    perturb = 0.0
+    perturb = 1.0
     # num_steps = 1000
-    num_episodes = 300
+    num_episodes = 1000
 
     env = SimpleMDP.FourRoomsEnv()
     # env = SimpleMDP.BinomialTreeMDP(depth=10)
     agent = PGAgent(num_actions=4, baseline_type='minvar', discount=0.99, env=env)
+
+    # q = agent._solve_q_values()
+    # # val = np.mean(q, axis=2)
+    # # print(val)
+    # b = agent._compute_ac_minvar_baseline(q)
+    # print(b)
+    # quit()
     state = env.reset()
 
     start_time = time.perf_counter()
     max_steps = 500
     num_steps_per_ep = []
+    returns = []
 
     for i_ep in range(num_episodes):
         print("ep {}".format(i_ep))
@@ -278,13 +303,17 @@ if __name__ == '__main__':
                 break
 
         # do updates
-        print('rew', reward, 'steps', steps, 'goal', state)
+        print('rew', reward, round(reward * 0.99**steps,3), 'steps', steps, 'goal', state)
         num_steps_per_ep.append(steps)
-        agent.update_reinforce(trajectory, step_size, perturb)
-
+        # agent.update_reinforce(trajectory, step_size, perturb)
+        agent.update_ac_true_q(trajectory, step_size, perturb)
         # reset
         state = env.reset()
+        returns.append(reward * 0.99**steps)
+        # agent = np.sum([_, _, r for transition in trajectory])
+
     print(num_steps_per_ep)
+    print(returns)
     print((time.perf_counter() - start_time) / 60, 'min')
     pass
 

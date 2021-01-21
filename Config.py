@@ -26,7 +26,7 @@ class Config:
         # RS, IS; constant0 policy; local detect features
 
         self.algorithms = ['ac_true_q']
-        self.algs_sweep_params = {'reinforce': OD([("step_size", [0.1]),
+        self.algs_sweep_params = {'ac_true_q': OD([("step_size", [0.1]),
                                                    # ("rew_step_size", [0.0]),
                                                    ("perturb", [-1, -0.5, 0, 0.5, 1])])
                                    }  #

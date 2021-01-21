@@ -95,6 +95,7 @@ class GridWorldEnv:
         self.name = 'gridworld'
         # the x-position goes from [0, gridsize[0]-1] and y-position goes from [0, gridsize[1]-1]
         self.pos = None
+        self.num_actions = 5
         if gridsize is None:
             gridsize = [5,5]
         self.gridsize = gridsize
@@ -142,6 +143,7 @@ class FourRoomsEnv:
         # the x-position goes from [0, gridsize[0]-1] and y-position goes from [0, gridsize[1]-1]
         self.pos = None
         self.gridsize = [10, 10]
+        self.num_actions = 4
         self.steps = np.array([[0, -1], [0, 1], [-1, 0], [1, 0]])
         self.goal_states = [[np.array([7, 7]), 1.0], [np.array([7, 2]), 0.3], [np.array([2, 7]), 0.6]]  # [goal, reward]
         self.reset()
@@ -188,17 +190,18 @@ class FourRoomsEnv:
     def _transition(self, state, action):
         # returns the reward and next state given a state and action
         # note the transitions are deterministic
+        state = np.array(state)
         new_state = state + self.steps[action]
 
         if self._check_valid_pos(new_state) and not self._check_hit_wall(state, action):
-            new_state = state
+            state = new_state
 
-        reached_goal, reward = self._check_goal(new_state)
+        reached_goal, reward = self._check_goal(state)
         done = False
         if reached_goal:
             done = True
 
-        return new_state, reward, done
+        return state, reward, done
 
     def step(self, action):
         # if an action brings you outside the grid, don't move
