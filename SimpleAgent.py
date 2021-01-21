@@ -124,26 +124,27 @@ class PGAgent:
     def _solve_q_values(self):
         # uses dynamic programming to approximately solve for q-values within tolerance
         tolerance = 1e-3
-        if env.name.lower() == 'fourrooms':
+
+        if self.env.name.lower() == 'fourrooms':
             num_actions = 4
             if self.q_values is None: # initialize array
-                self.q_values = 0.5*np.ones((env.gridsize[0], env.gridsize[1], num_actions))
+                self.q_values = 0.5*np.ones((self.env.gridsize[0], self.env.gridsize[1], num_actions))
             q_values = self.q_values  # note this is a reference
 
-            # cache all the possible transitions (assumes environment is deterministic)
+            # cache all the possible transitions (assumes self.environment is deterministic)
             transitions = dict()
-            for i in range(0, env.gridsize[0]):
-                for j in range(0, env.gridsize[1]):
+            for i in range(0, self.env.gridsize[0]):
+                for j in range(0, self.env.gridsize[1]):
                     for a in range(0, 4):
-                        transitions[(i,j,a)] = env._transition(state=(i,j), action=a)
+                        transitions[(i,j,a)] = self.env._transition(state=(i,j), action=a)
                         # note: transition returns (next_state, reward, done)
 
             max_change = 999
             while max_change > tolerance:
                 # print("change", max_change)
                 temp_copy = q_values.copy()
-                for i in range(0, env.gridsize[0]):
-                    for j in range(0, env.gridsize[1]):
+                for i in range(0, self.env.gridsize[0]):
+                    for j in range(0, self.env.gridsize[1]):
                         for a in range(0, 4):
                             # print(transitions[(i,j,a)])
                             next_state, reward, done = transitions[(i,j,a)]
@@ -162,24 +163,23 @@ class PGAgent:
 
             return q_values.copy()
 
-        elif env.name.lower() == 'gridworld':
+        elif self.env.name.lower() == 'gridworld':
             raise AssertionError('Solving q-values Not implemented for gridworld')
 
     def _compute_ac_minvar_baseline(self, q_values):
         # returns the min-variance baseline for all states
         # requires as input the q-value estimates (could be the true q-values)
-        if env.name.lower() == 'fourrooms':
+        if self.env.name.lower() == 'fourrooms':
             # assumes q_values are given as an array with (state, state, action)
             num_actions = 4
-            baselines = np.zeros(tuple(env.gridsize), dtype='float')
-            for i in range(env.gridsize[0]):
-                for j in range(env.gridsize[1]):
-
+            baselines = np.zeros(tuple(self.env.gridsize), dtype='float')
+            for i in range(self.env.gridsize[0]):
+                for j in range(self.env.gridsize[1]):
                     policy = self.get_policy_prob([i, j])
                     baselines[(i,j)] = np.sum([self._weight_optimal_baseline(a, policy) * q_values[(i,j,a)] for a in range(num_actions)])
             return baselines
 
-        elif env.name.lower() == 'gridworld':
+        elif self.env.name.lower() == 'gridworld':
             raise AssertionError('Solving q-values Not implemented for gridworld')
 
     def _weight_optimal_baseline(self, index, policy_probs):
@@ -264,7 +264,7 @@ if __name__ == '__main__':
     print('Running!')
     # gridsize = (5,5)
     step_size = 0.1
-    perturb = 1.0
+    perturb = 0.0
     # num_steps = 1000
     num_episodes = 1000
 

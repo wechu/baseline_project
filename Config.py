@@ -5,7 +5,6 @@
 import time, datetime
 import numpy as np
 from collections import OrderedDict as OD
-# import Config2
 
 class Config:
     def __init__(self):
@@ -15,9 +14,9 @@ class Config:
         self.date = '{:02d}_{:02d}_{:02d}_{}'.format(now.month, now.day, now.hour, now.year)
         self.parallelize_runs = True  # use this to split the runs into separate jobs
 
-        self.num_runs = 3
+        self.num_runs = 20
         # self.num_steps = 30000
-        self.num_episodes = 10000  # only one of num_eps or num_steps should be used
+        self.num_episodes = 15000  # only one of num_eps or num_steps should be used
         self.save_freq = 200
         self.save_dir = 'res'
         self.save_tag = ''  # string to add to the saved file name
@@ -43,5 +42,4 @@ class Config:
                            ]  # this list matches the order of envs in self.environments,
 
 config = Config()
-# config = Config2.Config()
 

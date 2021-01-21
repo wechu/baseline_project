@@ -7,20 +7,21 @@ import matplotlib.pyplot as plt
 #
 
 
-path = 'res/11_05_13_2020/1604601182_/'
+path = 'res/01_21_12_2021/1611250147_/'
 
 with open(path + "config.pkl", 'rb') as f:
     config = pickle.load(f)
 
 print(config.id)
 
-alg = 'reinforce'
+alg = 'ac_true_q'
 sweep_params_dict = collections.OrderedDict(
     list(config.shared_sweep_params.items()) + list(config.algs_sweep_params[alg].items()))
 
 hyperparam_names = list(sweep_params_dict.keys())
 hyperparam_tuples = list(itertools.product(*list(sweep_params_dict.values())))
 num_hyperparam = len(hyperparam_tuples)
+print(num_hyperparam)
 # list of all hyperparameter settings, note that it is still in the same order as generated in CreateJobs.py
 
 #### Merge runs when parallelizing runs
@@ -32,6 +33,7 @@ for i_hyp in range(num_hyperparam):
             logged_value = 'all_returns'
 
         for i_run in range(config.num_runs):
+
             result = np.load(path + 'Runs/{}_{}/run_{}/{}.npy'.format(alg, i_hyp, i_run, logged_value))
             result_lst.append(result)
 
