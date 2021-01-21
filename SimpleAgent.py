@@ -102,7 +102,7 @@ class PGAgent:
             onehot = np.zeros(self.num_actions)
             onehot[a] = 1
 
-            total_reward = total_reward * self.discount + r
+            # total_reward = total_reward * self.discount + r
 
             if self.baseline_type == 'avg':
                 baseline = self.avg_returns[s]
@@ -116,8 +116,9 @@ class PGAgent:
             self.visit_counts[s] += 1
 
             self.param[s] += step_size * total_discount * (
-                        (total_reward - (baseline + perturb)) * (onehot - self.get_policy_prob(s)))
+                        (q_values[(s[0], s[1], a)] - (baseline + perturb)) * (onehot - self.get_policy_prob(s)))
             # note that this previous step has to be done simultaneously for all states for function approx i
+
             total_discount /= self.discount
 
     def _solve_q_values(self):
