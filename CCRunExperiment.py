@@ -13,6 +13,7 @@ import SimpleAgent
 import argparse
 import SimpleMDP
 
+
 def parse_args():
     parser = argparse.ArgumentParser(description = 'Experiment')
     # parser.add_argument('--jobs_path', type=str, default='jobs/', help='path to the jobs folder to load the config file')
@@ -253,7 +254,6 @@ for logged_var, result in all_logged_values.items():
     if logged_var == 'state_visitation_entropy_eval':
         np.save(save_path + "state_visitation_entropy_eval.npy", all_logged_values[logged_var])
 
-#
 # with open(base_save_path + config.output_file, 'a') as f:
 #     print("Done! Total runtime (min): {}".format(
 #         (time.perf_counter() - start_time)/60), file=f)

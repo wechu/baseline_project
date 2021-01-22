@@ -12,9 +12,9 @@ class Config:
         self.id = int(time.time())  # use Unix time as a unique id
         now = datetime.datetime.now()
         self.date = '{:02d}_{:02d}_{:02d}_{}'.format(now.month, now.day, now.hour, now.year)
-        self.parallelize_runs = True  # use this to split the runs into separate jobs
+        self.parallelize_runs = False  # use this to split the runs into separate jobs
 
-        self.num_runs = 20
+        self.num_runs = 50
         # self.num_steps = 30000
         self.num_episodes = 15000  # only one of num_eps or num_steps should be used
         self.save_freq = 200
@@ -25,7 +25,7 @@ class Config:
         # RS, IS; constant0 policy; local detect features
 
         self.algorithms = ['ac_true_q']
-        self.algs_sweep_params = {'ac_true_q': OD([("step_size", [0.1]),
+        self.algs_sweep_params = {'ac_true_q': OD([("step_size", [0.2, 0.3, 0.4, 0.5, 0.6, 0.8, 1.0]),
                                                    # ("rew_step_size", [0.0]),
                                                    ("perturb", [-1, -0.5, 0, 0.5, 1])])
                                    }  #

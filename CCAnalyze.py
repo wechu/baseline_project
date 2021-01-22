@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 #
 
 
-path = 'res/01_21_12_2021/1611250147_/'
+path = 'res/01_21_16_2021/1611262910_/'
 
 with open(path + "config.pkl", 'rb') as f:
     config = pickle.load(f)
@@ -24,7 +24,7 @@ num_hyperparam = len(hyperparam_tuples)
 print(num_hyperparam)
 # list of all hyperparameter settings, note that it is still in the same order as generated in CreateJobs.py
 
-#### Merge runs when parallelizing runs
+### Merge runs and aggregate results when parallelizing runs
 for i_hyp in range(num_hyperparam):
     for logged_value in config.logged_values:
         result_lst = []
@@ -40,8 +40,6 @@ for i_hyp in range(num_hyperparam):
         aggregate_result = np.concatenate(result_lst, axis=0)
         print(i_hyp, aggregate_result.shape)
         np.save(path + "Runs/{}_{}/{}.npy".format(alg, i_hyp, logged_value), aggregate_result)
-
-
 
 ###
 
@@ -97,7 +95,7 @@ for metric_index in range(4):
     results = np.array(results)
     results = results.transpose([1, 0, 2])
     data_ent = results
-    N = 100
+    N = 20
 
     # Valentin's plots
     from matplotlib.pyplot import Subplot
@@ -111,17 +109,23 @@ for metric_index in range(4):
 
     # vec =
     # vec = np.logspace(0, np.log10(50000), data_ent.mean(0).T[:, 0].shape[0])
+    # T = 10
     ylabels = ['return', 'Action entropy trajectory', 'Online state visitation entropy', 'Offline state visitation entropy']
-    for i in range(5):
+    for i in range(len(baselines)):
         # color = (i/5, 0.2, 1-i/5)
         mean = data_ent[:, i, :].mean(0)
         std = data_ent[:, i, :].std(0)/np.sqrt(N)
+        # mean = mean[0:T]
+        # std = std[:T]
+        # vec = vec[:T]
         plt.plot(vec, mean, label = str(baselines[i]), linewidth=4)
         plt.fill_between(vec, mean-std, mean+std,  alpha=0.10)
         # plt.ylabel(r'$H(\pi)$')
         plt.ylabel(ylabels[metric_index])
         plt.xlabel('t')
         # plt.xscale('log')
+        # ax.set_xticks([1, 10, 100, 1000, 10000])
+
     plt.legend()
 
     # plt.savefig('entropy_pi.pdf', dpi=300, bbox_inches='tight')
