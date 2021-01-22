@@ -16,12 +16,12 @@ class Config:
 
         self.num_runs = 50
         # self.num_steps = 30000
-        self.num_episodes = 15000  # only one of num_eps or num_steps should be used
+        self.num_episodes = 2000  # only one of num_eps or num_steps should be used
         self.save_freq = 200
         self.save_dir = 'res'
         self.save_tag = ''  # string to add to the saved file name
         self.output_file = 'log.txt'
-        self.logged_values = ['returns', 'action_entropy_trajectory', 'state_visitation_entropy_online', 'state_visitation_entropy_eval']
+        self.logged_values = ['returns', 'discounted_returns', 'action_entropy_trajectory', 'state_visitation_entropy_online', 'state_visitation_entropy_eval']
         # RS, IS; constant0 policy; local detect features
 
         self.algorithms = ['ac_true_q']

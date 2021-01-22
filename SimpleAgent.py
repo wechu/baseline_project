@@ -9,7 +9,7 @@ import time
 
 
 class PGAgent:
-    def __init__(self, num_actions, discount, baseline_type=None, seed=None, env=None):
+    def __init__(self, num_actions, discount, baseline_type=None, seed=None, env=None, use_natural_pg=False):
         # tabular
         if env.name.lower() in ['gridworld', 'fourrooms']:
             self.param = np.zeros(shape=[env.gridsize[0], env.gridsize[1], num_actions])  # height x width x num_actions
@@ -23,6 +23,7 @@ class PGAgent:
 
         self.num_actions = num_actions
         self.baseline_type = baseline_type  # "avg", "minvar", None
+        self.use_natural_pg = use_natural_pg
 
         self.discount = discount
         self.rng = np.random.RandomState(seed)
@@ -115,8 +116,14 @@ class PGAgent:
                 baseline = 0
             self.visit_counts[s] += 1
 
-            self.param[s] += step_size * total_discount * (
-                        (q_values[(s[0], s[1], a)] - (baseline + perturb)) * (onehot - self.get_policy_prob(s)))
+            if self.use_natural_pg:
+                self.param[s] +=  step_size * total_discount * (q_values[(s[0], s[1], a)] - (baseline + perturb))
+                # is the discount factor correct?
+            else:
+                self.param[s] += step_size * total_discount * (
+                            (q_values[(s[0], s[1], a)] - (baseline + perturb)) * (onehot - self.get_policy_prob(s)))
+
+
             # note that this previous step has to be done simultaneously for all states for function approx i
 
             total_discount /= self.discount
@@ -263,8 +270,8 @@ if __name__ == '__main__':
     np.set_printoptions(suppress=True, linewidth=1000)
     print('Running!')
     # gridsize = (5,5)
-    step_size = 0.1
-    perturb = 0.0
+    step_size = 0.5
+    perturb = -1.0
     # num_steps = 1000
     num_episodes = 1000
 
@@ -278,6 +285,17 @@ if __name__ == '__main__':
     # b = agent._compute_ac_minvar_baseline(q)
     # print(b)
     # quit()
+    def act2str(action):
+        if action == 0:
+            return '^'
+        elif action == 1:
+            return 'v'
+        elif action == 2:
+            return '<'
+        elif action == 3:
+            return '>'
+        else:
+            return 'o'
     state = env.reset()
 
     start_time = time.perf_counter()
@@ -302,16 +320,31 @@ if __name__ == '__main__':
             steps += 1
             if steps >= max_steps:
                 break
+        prev_policy_prob = []
+        for s, a, _ in trajectory:
+            prev_policy_prob.append((act2str(a), np.round(agent.get_policy_prob(s), 3) ))
 
         # do updates
         print('rew', reward, round(reward * 0.99**steps,3), 'steps', steps, 'goal', state)
         num_steps_per_ep.append(steps)
+
         # agent.update_reinforce(trajectory, step_size, perturb)
         agent.update_ac_true_q(trajectory, step_size, perturb)
         # reset
         state = env.reset()
+        # prev_state = None
+
         returns.append(reward * 0.99**steps)
         # agent = np.sum([_, _, r for transition in trajectory])
+
+        # check
+        current_policy_prob = []
+        count_s0 = 0
+        for s, a, _ in trajectory:
+            if np.all(np.equal(np.array([0,0]), s)):
+                count_s0 += 1
+            current_policy_prob.append((act2str(a), np.round(agent.get_policy_prob(s), 3)))
+
 
     print(num_steps_per_ep)
     print(returns)

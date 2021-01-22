@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 #
 
 
-path = 'res/01_21_16_2021/1611262910_/'
+path = 'res/01_21_22_2021/1611287538_/'
 
 with open(path + "config.pkl", 'rb') as f:
     config = pickle.load(f)
@@ -25,6 +25,7 @@ print(num_hyperparam)
 # list of all hyperparameter settings, note that it is still in the same order as generated in CreateJobs.py
 
 ### Merge runs and aggregate results when parallelizing runs
+# this is not necessary if parallelize_runs = False in the config
 for i_hyp in range(num_hyperparam):
     for logged_value in config.logged_values:
         result_lst = []
@@ -47,6 +48,8 @@ for i_hyp in range(num_hyperparam):
 # dictionary with the format { hyperparameter tuple: [logged_value1, logged_value2, ...] }
 all_results = OD()
 for i_hyp in range(num_hyperparam):
+    if i_hyp in (10, 15):
+        continue
     result_lst = []
     # result_lst.append(hyperparam_tuples[i_hyp])
     for logged_value in config.logged_values:
@@ -79,23 +82,35 @@ print(list(all_results.values())[0][2])
 
 
 
+def running_mean(x, N):
+
+    cumsum = np.cumsum(np.insert(x, 0, 0))
+
+    return (cumsum[N:] - cumsum[:-N]) / float(N)
+
 # data_ent should be  N_seeds x N_baselines x T array
-step_size = 0.1
+step_size = 0.3 # 0.2, 0.3, 0.4, 0.5, 0.6, 0.8, 1.0
 baselines=[-1, -0.5, 0, 0.5, 1]
 
 metric_index = 0
 for metric_index in range(4):
+
     results = []
+
     for i in range(len(hyperparam_tuples)):
         hyp = hyperparam_tuples[i]
         if hyp[3] == step_size:
             print(hyp)
-            results.append(all_results[hyp][metric_index])  # choose index based on 'returns', 'action_entropy_trajectory', etc.
+            try:
+                results.append(all_results[hyp][metric_index])  # choose index based on 'returns', 'action_entropy_trajectory', etc.
+            except:
+                print('missing')
+                results.append(np.zeros([50, 100]))
 
     results = np.array(results)
     results = results.transpose([1, 0, 2])
     data_ent = results
-    N = 20
+    N = 50
 
     # Valentin's plots
     from matplotlib.pyplot import Subplot
@@ -110,16 +125,28 @@ for metric_index in range(4):
     # vec =
     # vec = np.logspace(0, np.log10(50000), data_ent.mean(0).T[:, 0].shape[0])
     # T = 10
+    # fig_names = ['return', '']
+    colors = ['blue', 'dodgerblue', 'black', 'orange', 'red']
     ylabels = ['return', 'Action entropy trajectory', 'Online state visitation entropy', 'Offline state visitation entropy']
-    for i in range(len(baselines)):
+
+    # for i in range(len(baselines)):
+    for i in [0,4]:
+        # Plot mean with error bars
         # color = (i/5, 0.2, 1-i/5)
-        mean = data_ent[:, i, :].mean(0)
-        std = data_ent[:, i, :].std(0)/np.sqrt(N)
-        # mean = mean[0:T]
-        # std = std[:T]
-        # vec = vec[:T]
-        plt.plot(vec, mean, label = str(baselines[i]), linewidth=4)
-        plt.fill_between(vec, mean-std, mean+std,  alpha=0.10)
+        # mean = data_ent[:, i, :].mean(0)
+        # std = data_ent[:, i, :].std(0)/np.sqrt(N)
+        # # mean = mean[0:T]
+        # # std = std[:T]
+        # # vec = vec[:T]
+        # plt.plot(vec, mean, label = str(baselines[i]), linewidth=4)
+        # plt.fill_between(vec, mean-std, mean+std,  alpha=0.10)
+
+        # plot individual runs
+        for i_run in range(20):
+
+            run = data_ent[i_run, i, :]
+            plt.plot(vec[0:96], running_mean(run,10), color=colors[i], linewidth=2, alpha=0.25)
+
         # plt.ylabel(r'$H(\pi)$')
         plt.ylabel(ylabels[metric_index])
         plt.xlabel('t')
@@ -127,6 +154,7 @@ for metric_index in range(4):
         # ax.set_xticks([1, 10, 100, 1000, 10000])
 
     plt.legend()
+
 
     # plt.savefig('entropy_pi.pdf', dpi=300, bbox_inches='tight')
 
@@ -141,9 +169,9 @@ def plot_cumulative_best_goal_reaches_window(data, window=1000):
         one_run = (data_reach_goal[i, window:] - data_reach_goal[i, :-window]) / float(window)
         plt.plot(one_run, color='blue', alpha=0.1)
 
-def running_mean(x, N):
-    cumsum = np.cumsum(x > 0.99)
-    return (cumsum[N:] - cumsum[:-N]) / float(N)
+# def running_mean(x, N):
+#     cumsum = np.cumsum(x > 0.99)
+#     return (cumsum[N:] - cumsum[:-N]) / float(N)
 
 def running_mean(x, N):
 
