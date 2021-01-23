@@ -98,7 +98,9 @@ class ThreeArmedBandit:
         # print("act", act)
 
         if self.parameterization == 'softmax' and self.optimizer == 'natural':
-            grad = np.ones(3, dtype='float') / (2*p[act]) + 1 / p[act] * basis_vector(act)
+            # this is the minimum-norm update
+            # grad = np.ones(3, dtype='float') / (2*p[act]) + 1 / p[act] * basis_vector(act)
+            grad = -np.ones(3, dtype='float') / (3 * p[act]) + 1 / p[act] * basis_vector(act)
         else:
             raise AssertionError('invalid parameterization or optimizer')
 

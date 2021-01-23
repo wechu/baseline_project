@@ -1,5 +1,20 @@
 
 Notes for the understanding baselines project
+--- Jan 22, 2021
+Using the actor-critic with true q-values doesn't yield any differences between +eps and -eps perturbed min-var baselines on the four-rooms domain.
+Well, there are some minor differences. If anything, it seems like the negative baseline does slightly better.
+We tried running a sweep of step sizes 0.1, 0.2, 0.3, 0.4, 0.5, 0.8, 1.0 but they all had a qualitatively similar result.
+Some things to investigate/note:
+- It may be due to starting off with a uniform policy. With a uniform policy, it's possible that the agent revisits the same state many times and pick different actions each time. This might effectively average out the effect of the baseline, explaining why both perturbed baselines perform similarly.
+- Using the true Q-values would lead to much lower variance estimates compared to reinforce. Maybe this improves optimization enough that somehow the baseline don't matter as much? I'm not sure how that would work specifically though.
+- vanilla PG vs. natural PG? In the bandit experiments, the committal effect was much more obvious with the natural PG than vanilla PG.
+- For larger step sizes,
+- Plots using the average and standard errors may be deceiving. Perhaps on average the +/- eps perform about the same but the individual learning curves are quite different. I took a quick look at this but it is difficult to interpret many learning curves. Nothing obvious is sticking out currently.
+- The max number of steps per episode might play a role in the learning dynamics. Right now, it's set to be relatively low at 100 steps. But, it happens that sometimes a policy will lead the agent to get stuck in some corner. I think this may penalize the -eps more than the +eps but, right now, due to the low cap on the length of the episode, this effect may not be appearing. This could be something to consider.
+- Compute variance of the all the possible updates. See what is going on there?
+
+Currently, we're running an online version of the actor-critic with true Q-values where at every step an  update is performed. Previously, we would only perform updates at the end of an episode. This experiment might remove the "averaging over visits to a state" effect hypothesized above.
+
 
 --- Apr 10, 2020
 As I'm going through the existing literature on convergence of policy gradients, it seems like there are no results concerning stochastic gradients with natural gradient step size, where the variance can be unbounded.

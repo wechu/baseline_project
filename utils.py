@@ -15,5 +15,7 @@ def logsumexp(prob_lst):
 
 # @jit(nopython=True)
 def softmax(x):
+    x = x - np.max(x)
     x = np.exp(x)
+
     return x / np.sum(x)

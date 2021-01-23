@@ -165,7 +165,8 @@ for i_run in range(num_runs):
 
     baseline_type = config.alg_other_params['baseline_type']
     agent = SimpleAgent.PGAgent(num_actions=num_actions,
-                                discount=hyperparams['discount'], baseline_type=baseline_type, seed=seed, env=env)
+                                discount=hyperparams['discount'], baseline_type=baseline_type, seed=seed, env=env,
+                                use_natural_pg=config.alg_other_params['use_natural_pg'])
     # print(agent.env)
 
     # training loop
@@ -177,6 +178,7 @@ for i_run in range(num_runs):
         done = False
         trajectory = []
         total_reward = 0
+        total_discounted_reward = 0
         steps = 0
         total_entropy = 0
 
@@ -190,7 +192,15 @@ for i_run in range(num_runs):
             state, reward, done = env.step(action)
 
             total_reward += reward
+            total_discounted_reward += reward * agent.discount**steps
+
             trajectory.append((prev_state, action, reward))
+
+            # if doing online updates, do them now
+            if args.alg == 'online_ac_true_q':
+                # update only on the most recent transition
+                agent.update_ac_true_q([trajectory[-1]], hyperparams['step_size'], hyperparams['perturb'], num_steps_from_start=steps)
+
             steps += 1
             if steps >= max_steps:
                 break
@@ -211,6 +221,7 @@ for i_run in range(num_runs):
             print("ep", i_ep, "time", (time.perf_counter() - start_time) / 60)
 
             logged_run_values['returns'].append(total_reward)
+            logged_run_values['discounted_returns'].append(total_discounted_reward)
             logged_run_values['action_entropy_trajectory'].append(total_entropy/steps)
 
             # compute online state visitation
@@ -246,13 +257,14 @@ for logged_var, result in all_logged_values.items():
             print("Final: {:.2f} +- {:.2f}, Avg: {:.2f} +- {:.2f}, Time: {:.2f} {} {} Index {}".format(
                 mean_returns[-1], std_returns[-1], np.mean(mean_returns), np.mean(std_returns), (time.perf_counter() - start_time) / 60,
                 args.alg, param_string, args.hyp_index), file=f)
-
-    if logged_var == 'action_entropy_trajectory':
-        np.save(save_path + "action_entropy_trajectory.npy", all_logged_values[logged_var])
-    if logged_var == 'state_visitation_entropy_online':
-        np.save(save_path + "state_visitation_entropy_online.npy", all_logged_values[logged_var])
-    if logged_var == 'state_visitation_entropy_eval':
-        np.save(save_path + "state_visitation_entropy_eval.npy", all_logged_values[logged_var])
+    else:
+        np.save(save_path + logged_var + '.npy', all_logged_values[logged_var])
+    # if logged_var == 'action_entropy_trajectory':
+    #     np.save(save_path + "action_entropy_trajectory.npy", all_logged_values[logged_var])
+    # if logged_var == 'state_visitation_entropy_online':
+    #     np.save(save_path + "state_visitation_entropy_online.npy", all_logged_values[logged_var])
+    # if logged_var == 'state_visitation_entropy_eval':
+    #     np.save(save_path + "state_visitation_entropy_eval.npy", all_logged_values[logged_var])
 
 # with open(base_save_path + config.output_file, 'a') as f:
 #     print("Done! Total runtime (min): {}".format(

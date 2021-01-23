@@ -32,12 +32,15 @@ class PGAgent:
         self.q_values = None  # use this to cache previous q-values in ac_true_q
         pass
 
-    def get_policy_prob(self, state):
+    def get_policy_prob(self, state, deepcopy=False):
         # returns vector of policy probabilities
+        if deepcopy:
+            return softmax(self.param[state[0], state[1]]).copy()
         return softmax(self.param[state[0], state[1]])
 
     def get_action(self, state):
         # returns an action sampled according to the policy probabilities
+        # print(self.param[state[0], state[1]])
         return self.rng.choice(np.arange(0, self.num_actions), p=self.get_policy_prob(state))
 
     def get_entropy(self, state):
@@ -84,16 +87,18 @@ class PGAgent:
 
         return
 
-    def update_ac_true_q(self, trajectory, step_size, perturb, rew_step_size=None):
+    def update_ac_true_q(self, trajectory, step_size, perturb, rew_step_size=None, num_steps_from_start=0):
         # this is the actor-critic update with the true q-values
         # trajectory is a sequence of transitions for one episode
         # of the form ((s, a, r'), (s', a', r''), ...)
+        # num_steps is the number of steps since the beginning of the trajectory, this is useful for the online actor-critic
         total_reward = 0
-        total_discount = self.discount ** (len(trajectory) - 1)
+        total_discount = self.discount ** ((len(trajectory) - 1) + num_steps_from_start)
+
+        q_values = self._solve_q_values()
 
         if self.baseline_type == 'minvar':
             # we compute the minvar baseline for all states with the true q-values
-            q_values = self._solve_q_values()
             minvar_baselines = self._compute_ac_minvar_baseline(q_values)
 
         for transition in reversed(trajectory):
@@ -117,12 +122,17 @@ class PGAgent:
             self.visit_counts[s] += 1
 
             if self.use_natural_pg:
-                self.param[s] +=  step_size * total_discount * (q_values[(s[0], s[1], a)] - (baseline + perturb))
+                # self.param[s[0], s[1], a] += step_size * total_discount * (q_values[(s[0], s[1], a)] - (baseline + perturb)) / np.clip(self.get_policy_prob(s)[a], 1e-5, 1)
                 # is the discount factor correct?
+                p = np.clip(self.get_policy_prob(s)[a], 1e-5, 1)
+                natural_grad = -np.ones(self.num_actions, dtype='float') / (self.num_actions * p) + 1 / p * onehot
+                self.param[s] += step_size * total_discount * (q_values[(s[0], s[1], a)] - (baseline + perturb)) * natural_grad
+
             else:
                 self.param[s] += step_size * total_discount * (
                             (q_values[(s[0], s[1], a)] - (baseline + perturb)) * (onehot - self.get_policy_prob(s)))
 
+                # print(onehot - self.get_policy_prob(s))
 
             # note that this previous step has to be done simultaneously for all states for function approx i
 
@@ -190,9 +200,16 @@ class PGAgent:
             raise AssertionError('Solving q-values Not implemented for gridworld')
 
     def _weight_optimal_baseline(self, index, policy_probs):
-        denom = 1 - np.sum(np.square(policy_probs))
-        num = np.sum(np.square(policy_probs)) - policy_probs[index]**2 + (1-policy_probs[index])**2
-        return num * policy_probs[index] / denom
+        if self.use_natural_pg:
+            policy_probs = np.clip(policy_probs, 1e-6, 1)
+            denom = np.sum([policy_probs[index] / policy_probs])
+            weight = 1 / denom
+        else:
+            denom = 1 - np.sum(np.square(policy_probs))
+            num = np.sum(np.square(policy_probs)) - policy_probs[index]**2 + (1-policy_probs[index])**2
+            weight = num * policy_probs[index] / denom
+
+        return weight
 
     def _estimate_minvar_baseline(self, num_rollouts=100, importance_sampling=True):
         # uses rollouts to estmate the minimum-variance baseline
@@ -270,14 +287,15 @@ if __name__ == '__main__':
     np.set_printoptions(suppress=True, linewidth=1000)
     print('Running!')
     # gridsize = (5,5)
-    step_size = 0.5
+    step_size = 0.01
     perturb = -1.0
     # num_steps = 1000
-    num_episodes = 1000
+    num_episodes = 300
 
     env = SimpleMDP.FourRoomsEnv()
     # env = SimpleMDP.BinomialTreeMDP(depth=10)
-    agent = PGAgent(num_actions=4, baseline_type='minvar', discount=0.99, env=env)
+    agent = PGAgent(num_actions=4, baseline_type='minvar', discount=0.99, env=env,
+                    use_natural_pg=True)
 
     # q = agent._solve_q_values()
     # # val = np.mean(q, axis=2)
@@ -296,10 +314,12 @@ if __name__ == '__main__':
             return '>'
         else:
             return 'o'
+
+    # agent.param[0,0, 0] = 3
     state = env.reset()
 
     start_time = time.perf_counter()
-    max_steps = 500
+    max_steps = 200
     num_steps_per_ep = []
     returns = []
 
@@ -309,6 +329,11 @@ if __name__ == '__main__':
         trajectory = []
         steps = 0
 
+        count_s0 = 0
+        s0_policy = []
+        s0_param = []
+        prev_policy_prob = []
+
         while not done:
             # print(trajectory)
             prev_state = state
@@ -317,14 +342,31 @@ if __name__ == '__main__':
             state, reward, done = env.step(action)
             # print(prev_state, reward, done, state)
             trajectory.append((prev_state, action, reward))
+
+            prev_policy_prob.append((act2str(action), np.round(agent.get_policy_prob(prev_state, True), 3)))
+
+            # if args.alg == 'online_ac_true_q':
+                # update only on the most recent transition
+            # agent.update_ac_true_q([trajectory[-1]], step_size, perturb, num_steps_from_start=0)# steps)
+
+
+            if np.all(np.equal(np.array([0,0]), prev_state)):
+                count_s0 += 1
+                s0_policy.append(list(np.round(agent.get_policy_prob(prev_state, True), 3)))
+                s0_param.append(list(np.round(agent.param[tuple(prev_state)].copy(), 2)))
+
             steps += 1
             if steps >= max_steps:
                 break
-        prev_policy_prob = []
+
         for s, a, _ in trajectory:
             prev_policy_prob.append((act2str(a), np.round(agent.get_policy_prob(s), 3) ))
 
         # do updates
+        # print(prev_policy_prob)
+        # print(count_s0, s0_policy)
+        # print(count_s0, s0_param)
+        # print([a for a, prob in prev_policy_prob])
         print('rew', reward, round(reward * 0.99**steps,3), 'steps', steps, 'goal', state)
         num_steps_per_ep.append(steps)
 
@@ -341,13 +383,16 @@ if __name__ == '__main__':
         current_policy_prob = []
         count_s0 = 0
         for s, a, _ in trajectory:
-            if np.all(np.equal(np.array([0,0]), s)):
-                count_s0 += 1
+            # if np.all(np.equal(np.array([0,0]), s)):
+            #     count_s0 += 1
+                # s0_policy.append(list(np.round(agent.get_policy_prob(s), 3)))
+
             current_policy_prob.append((act2str(a), np.round(agent.get_policy_prob(s), 3)))
 
 
+
     print(num_steps_per_ep)
-    print(returns)
+    print(np.round(returns, 2))
     print((time.perf_counter() - start_time) / 60, 'min')
     pass
 

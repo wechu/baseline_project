@@ -16,8 +16,8 @@ class Config:
 
         self.num_runs = 50
         # self.num_steps = 30000
-        self.num_episodes = 2000  # only one of num_eps or num_steps should be used
-        self.save_freq = 200
+        self.num_episodes = 3000  # only one of num_eps or num_steps should be used
+        self.save_freq = 5
         self.save_dir = 'res'
         self.save_tag = ''  # string to add to the saved file name
         self.output_file = 'log.txt'
@@ -25,16 +25,16 @@ class Config:
         # RS, IS; constant0 policy; local detect features
 
         self.algorithms = ['ac_true_q']
-        self.algs_sweep_params = {'ac_true_q': OD([("step_size", [0.2, 0.3, 0.4, 0.5, 0.6, 0.8, 1.0]),
+        self.algs_sweep_params = {'ac_true_q': OD([("step_size", [0.001, 0.003, 0.005, 0.01, 0.03, 0.05, 0.1]),
                                                    # ("rew_step_size", [0.0]),
                                                    ("perturb", [-1, -0.5, 0, 0.5, 1])])
                                    }  #
 
         self.shared_sweep_params = OD([('optimizer', ['SGD']),
                                        ('discount', [0.99]),
-                                       ('horizon', [100])])
+                                       ('horizon', [200])])
 
-        self.alg_other_params = {'seed': 123, 'baseline_type': 'minvar'}
+        self.alg_other_params = {'seed': 123, 'baseline_type': 'minvar', 'use_natural_pg': True}
         # TODO when adding ADAM, think about where to put beta1 and beta2
 
         self.environments = ['fourrooms']

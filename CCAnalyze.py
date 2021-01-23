@@ -7,14 +7,14 @@ import matplotlib.pyplot as plt
 #
 
 
-path = 'res/01_21_22_2021/1611287538_/'
+path = 'res/01_22_15_2021/1611348374_/'
 
 with open(path + "config.pkl", 'rb') as f:
     config = pickle.load(f)
 
 print(config.id)
 
-alg = 'ac_true_q'
+alg = 'online_ac_true_q'
 sweep_params_dict = collections.OrderedDict(
     list(config.shared_sweep_params.items()) + list(config.algs_sweep_params[alg].items()))
 
@@ -23,6 +23,7 @@ hyperparam_tuples = list(itertools.product(*list(sweep_params_dict.values())))
 num_hyperparam = len(hyperparam_tuples)
 print(num_hyperparam)
 # list of all hyperparameter settings, note that it is still in the same order as generated in CreateJobs.py
+
 
 ### Merge runs and aggregate results when parallelizing runs
 # this is not necessary if parallelize_runs = False in the config
@@ -41,21 +42,24 @@ for i_hyp in range(num_hyperparam):
         aggregate_result = np.concatenate(result_lst, axis=0)
         print(i_hyp, aggregate_result.shape)
         np.save(path + "Runs/{}_{}/{}.npy".format(alg, i_hyp, logged_value), aggregate_result)
-
 ###
 
 # Load results
 # dictionary with the format { hyperparameter tuple: [logged_value1, logged_value2, ...] }
 all_results = OD()
 for i_hyp in range(num_hyperparam):
-    if i_hyp in (10, 15):
-        continue
+    # if i_hyp in (10, 15):
+    #     continue
     result_lst = []
     # result_lst.append(hyperparam_tuples[i_hyp])
     for logged_value in config.logged_values:
         if logged_value == 'returns':
             result = np.load(path + 'Runs/{}_{}/all_returns.npy'.format(alg, i_hyp))
             result_lst.append(result)
+        # else:
+        #     result = np.load(path + 'Runs/{}_{}/{}.npy'.format(alg, i_hyp, logged_value))
+        #     result_lst.append(result)
+        #
         if logged_value == 'action_entropy_trajectory':
             result = np.load(path + 'Runs/{}_{}/action_entropy_trajectory.npy'.format(alg, i_hyp))
             result_lst.append(result)
@@ -92,11 +96,9 @@ def running_mean(x, N):
 step_size = 0.3 # 0.2, 0.3, 0.4, 0.5, 0.6, 0.8, 1.0
 baselines=[-1, -0.5, 0, 0.5, 1]
 
-metric_index = 0
+# metric_index = 0
 for metric_index in range(4):
-
     results = []
-
     for i in range(len(hyperparam_tuples)):
         hyp = hyperparam_tuples[i]
         if hyp[3] == step_size:
@@ -110,7 +112,7 @@ for metric_index in range(4):
     results = np.array(results)
     results = results.transpose([1, 0, 2])
     data_ent = results
-    N = 50
+    N = 20
 
     # Valentin's plots
     from matplotlib.pyplot import Subplot
@@ -119,7 +121,7 @@ for metric_index in range(4):
     fig.add_subplot(ax)
     # ax.axis["right"].set_visible(False)
     # ax.axis["top"].set_visible(False)
-    save_freq = 200
+    save_freq = 10
     vec = np.arange(data_ent.mean(0).T[:, 0].shape[0]) * save_freq
 
     # vec =
@@ -129,23 +131,24 @@ for metric_index in range(4):
     colors = ['blue', 'dodgerblue', 'black', 'orange', 'red']
     ylabels = ['return', 'Action entropy trajectory', 'Online state visitation entropy', 'Offline state visitation entropy']
 
-    # for i in range(len(baselines)):
-    for i in [0,4]:
+    for i in range(len(baselines)):
+    # for i in [0,2,4]:
         # Plot mean with error bars
         # color = (i/5, 0.2, 1-i/5)
-        # mean = data_ent[:, i, :].mean(0)
-        # std = data_ent[:, i, :].std(0)/np.sqrt(N)
-        # # mean = mean[0:T]
-        # # std = std[:T]
-        # # vec = vec[:T]
-        # plt.plot(vec, mean, label = str(baselines[i]), linewidth=4)
-        # plt.fill_between(vec, mean-std, mean+std,  alpha=0.10)
+        mean = data_ent[:, i, :].mean(0)
+        std = data_ent[:, i, :].std(0)/np.sqrt(N)
+        # mean = mean[0:T]
+        # std = std[:T]
+        # vec = vec[:T]
+        plt.plot(vec, mean, label = str(baselines[i]), linewidth=4)
+        plt.fill_between(vec, mean-std, mean+std,  alpha=0.10)
 
         # plot individual runs
-        for i_run in range(20):
-
-            run = data_ent[i_run, i, :]
-            plt.plot(vec[0:96], running_mean(run,10), color=colors[i], linewidth=2, alpha=0.25)
+        # window=10
+        # for i_run in range(10, 20, 1):
+        #
+        #     run = data_ent[i_run, i, :]
+        #     plt.plot(vec[0:100-window+1], running_mean(run,window), color=colors[i], linewidth=2, alpha=0.25)
 
         # plt.ylabel(r'$H(\pi)$')
         plt.ylabel(ylabels[metric_index])
@@ -155,10 +158,14 @@ for metric_index in range(4):
 
     plt.legend()
 
+    plt.savefig('{}.pdf'.format(ylabels[metric_index]), dpi=300, bbox_inches='tight')
 
-    # plt.savefig('entropy_pi.pdf', dpi=300, bbox_inches='tight')
 
 
+
+
+
+#####
 
 
 def plot_cumulative_best_goal_reaches_window(data, window=1000):
@@ -235,14 +242,14 @@ for h_setting in sweep_params_dict[name_sweep]:
 
 
 
-
-
-from mpl_toolkits.mplot3d import Axes3D  # noqa: F401 unused import
-fig = plt.figure()
-ax = fig.add_subplot(111, projection='3d')
-
-
-
+#
+#
+# from mpl_toolkits.mplot3d import Axes3D  # noqa: F401 unused import
+# fig = plt.figure()
+# ax = fig.add_subplot(111, projection='3d')
+#
+#
+#
 
 
 
