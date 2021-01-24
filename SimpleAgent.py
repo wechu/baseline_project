@@ -44,9 +44,12 @@ class PGAgent:
         return self.rng.choice(np.arange(0, self.num_actions), p=self.get_policy_prob(state))
 
     def get_entropy(self, state):
+        # make sure to be numerically stable
         p = np.array(self.get_policy_prob(state))
-        return -np.sum(p*np.log(p))
-
+        x = self.param[state]
+        c = np.max(x)
+        logpi = x - np.log(np.sum(np.exp(x-c))) - c
+        return -np.sum(p * logpi)
     def update_reinforce(self, trajectory, step_size, perturb, rew_step_size=None):
         # trajectory is a sequence of transitions for one episode
         # of the form ((s, a, r'), (s', a', r''), ...)

@@ -7,14 +7,14 @@ import matplotlib.pyplot as plt
 #
 
 
-path = 'res/01_22_15_2021/1611348374_/'
+path = 'res/01_23_03_2021/1611389904_/'
 
 with open(path + "config.pkl", 'rb') as f:
     config = pickle.load(f)
 
 print(config.id)
 
-alg = 'online_ac_true_q'
+alg = 'ac_true_q'
 sweep_params_dict = collections.OrderedDict(
     list(config.shared_sweep_params.items()) + list(config.algs_sweep_params[alg].items()))
 
@@ -60,6 +60,10 @@ for i_hyp in range(num_hyperparam):
         #     result = np.load(path + 'Runs/{}_{}/{}.npy'.format(alg, i_hyp, logged_value))
         #     result_lst.append(result)
         #
+        if logged_value == 'discounted_returns':
+            result = np.load(path + 'Runs/{}_{}/{}.npy'.format(alg, i_hyp, logged_value))
+            result_lst.append(result)
+
         if logged_value == 'action_entropy_trajectory':
             result = np.load(path + 'Runs/{}_{}/action_entropy_trajectory.npy'.format(alg, i_hyp))
             result_lst.append(result)
@@ -93,11 +97,11 @@ def running_mean(x, N):
     return (cumsum[N:] - cumsum[:-N]) / float(N)
 
 # data_ent should be  N_seeds x N_baselines x T array
-step_size = 0.3 # 0.2, 0.3, 0.4, 0.5, 0.6, 0.8, 1.0
-baselines=[-1, -0.5, 0, 0.5, 1]
+step_size = 0.003  # 0.2, 0.3, 0.4, 0.5, 0.6, 0.8, 1.0
+baselines = [-1, -0.5, 0, 0.5, 1]
 
 # metric_index = 0
-for metric_index in range(4):
+for metric_index in range(5):
     results = []
     for i in range(len(hyperparam_tuples)):
         hyp = hyperparam_tuples[i]
@@ -112,7 +116,11 @@ for metric_index in range(4):
     results = np.array(results)
     results = results.transpose([1, 0, 2])
     data_ent = results
-    N = 20
+
+    if metric_index == 1:
+        print(results)
+
+    N = 50
 
     # Valentin's plots
     from matplotlib.pyplot import Subplot
@@ -121,15 +129,15 @@ for metric_index in range(4):
     fig.add_subplot(ax)
     # ax.axis["right"].set_visible(False)
     # ax.axis["top"].set_visible(False)
-    save_freq = 10
+    save_freq = 5
     vec = np.arange(data_ent.mean(0).T[:, 0].shape[0]) * save_freq
 
     # vec =
     # vec = np.logspace(0, np.log10(50000), data_ent.mean(0).T[:, 0].shape[0])
     # T = 10
     # fig_names = ['return', '']
-    colors = ['blue', 'dodgerblue', 'black', 'orange', 'red']
-    ylabels = ['return', 'Action entropy trajectory', 'Online state visitation entropy', 'Offline state visitation entropy']
+    colors = [u'b', u'g', u'r', u'c', u'm', u'y'] #['blue', 'dodgerblue', 'black', 'orange', 'red']
+    ylabels = ['returns', 'discounted returns', 'Action entropy trajectory', 'Online state visitation entropy', 'Offline state visitation entropy']
 
     for i in range(len(baselines)):
     # for i in [0,2,4]:
@@ -140,7 +148,7 @@ for metric_index in range(4):
         # mean = mean[0:T]
         # std = std[:T]
         # vec = vec[:T]
-        plt.plot(vec, mean, label = str(baselines[i]), linewidth=4)
+        plt.plot(vec, mean, label = str(baselines[i]), linewidth=2)
         plt.fill_between(vec, mean-std, mean+std,  alpha=0.10)
 
         # plot individual runs

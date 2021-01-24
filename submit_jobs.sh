@@ -3,7 +3,7 @@
 #SBATCH --cpus-per-task=1       # CPU cores/threads
 #SBATCH --mem=128mb             # memory per node
 #SBATCH --time=10:59:00            # time (HH:MM:SS)
-#SBATCH --array=0-199   # change this to match the number of job_i files that you have
+#SBATCH --array=0-34   # change this to match the number of job_i files that you have
 
 module load python/3.6
 module load scipy-stack
