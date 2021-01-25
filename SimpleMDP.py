@@ -138,16 +138,17 @@ class GridWorldEnv:
         return self.pos.copy(), reward, done
 
 class FourRoomsEnv:
-    def __init__(self):
+    def __init__(self, extra_wall=False, wall_penalty=False):
         self.name = 'fourrooms'
         # the x-position goes from [0, gridsize[0]-1] and y-position goes from [0, gridsize[1]-1]
         self.pos = None
         self.gridsize = [10, 10]
         self.num_actions = 4
+        self.extra_wall = extra_wall  # adds a wall between the second best goal and the best goal
+        self.wall_penalty = wall_penalty  # adds a small negative reward whenever you hit a wall
         self.steps = np.array([[0, -1], [0, 1], [-1, 0], [1, 0]])
         self.goal_states = [[np.array([7, 7]), 1.0], [np.array([7, 2]), 0.3], [np.array([2, 7]), 0.6]]  # [goal, reward]
         self.reset()
-
         pass
 
     def reset(self):
@@ -167,11 +168,21 @@ class FourRoomsEnv:
         # or y-coordinate 4 and 5
         # the only doorways are in the center of the walls of each room
         if action == 0: # up
-            if state[0] == 5 and not state[1] in [2, 7]:
-                return True
+            if self.extra_wall:
+                # try adding a wall between the second best goal and best
+                if state[0] == 5 and not state[1] in [2]:
+                    return True
+            else:
+                if state[0] == 5 and not state[1] in [2, 7]:
+                    return True
+
         elif action == 1: # down
-            if state[0] == 4 and not state[1] in [2, 7]:
-                return True
+            if self.extra_wall:
+                if state[0] == 4 and not state[1] in [2]:
+                    return True
+            else:
+                if state[0] == 4 and not state[1] in [2, 7]:
+                    return True
         elif action == 2: # left
             if state[1] == 5 and not state[0] in [2, 7]:
                 return True
@@ -192,11 +203,16 @@ class FourRoomsEnv:
         # note the transitions are deterministic
         state = np.array(state)
         new_state = state + self.steps[action]
+        hit_wall = True
 
         if self._check_valid_pos(new_state) and not self._check_hit_wall(state, action):
             state = new_state
+            hit_wall = False
 
         reached_goal, reward = self._check_goal(state)
+        if self.wall_penalty and hit_wall:
+            reward -= 0.01
+
         done = False
         if reached_goal:
             done = True
@@ -207,10 +223,15 @@ class FourRoomsEnv:
         # if an action brings you outside the grid, don't move
         new_pos = self.pos + self.steps[action]
 
+        hit_wall = True
         if self._check_valid_pos(new_pos) and not self._check_hit_wall(self.pos, action):
             self.pos = new_pos
+            hit_wall = False
 
         reached_goal, reward = self._check_goal(self.pos)
+        if self.wall_penalty and hit_wall:
+            reward -= 0.01
+
         done = False
         if reached_goal:
             done = True

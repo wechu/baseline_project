@@ -9,7 +9,7 @@ import time
 
 
 class PGAgent:
-    def __init__(self, num_actions, discount, baseline_type=None, seed=None, env=None, use_natural_pg=False):
+    def __init__(self, num_actions, discount, baseline_type=None, seed=None, env=None, use_natural_pg=False, relative_perturb=False):
         # tabular
         if env.name.lower() in ['gridworld', 'fourrooms']:
             self.param = np.zeros(shape=[env.gridsize[0], env.gridsize[1], num_actions])  # height x width x num_actions
@@ -24,6 +24,7 @@ class PGAgent:
         self.num_actions = num_actions
         self.baseline_type = baseline_type  # "avg", "minvar", None
         self.use_natural_pg = use_natural_pg
+        self.relative_perturb = relative_perturb  # if True, uses a perturbation which is based on the size of Q(s,a) - b*
 
         self.discount = discount
         self.rng = np.random.RandomState(seed)
@@ -45,14 +46,15 @@ class PGAgent:
 
     def get_entropy(self, state):
         # make sure to be numerically stable
-        p = np.array(self.get_policy_prob(state))
-        x = self.param[state]
-        c = np.max(x)
-        logpi = x - np.log(np.sum(np.exp(x-c))) - c
-        return -np.sum(p * logpi)
+        x = self.param[tuple(state)]
+        return softmax_entropy(x)
+
+
     def update_reinforce(self, trajectory, step_size, perturb, rew_step_size=None):
         # trajectory is a sequence of transitions for one episode
         # of the form ((s, a, r'), (s', a', r''), ...)
+        # note that s must be a tuple (not a numpy array) or else indexing doesn't work properly
+
         total_reward = 0
         total_discount = self.discount ** (len(trajectory)-1)
 
@@ -95,6 +97,8 @@ class PGAgent:
         # trajectory is a sequence of transitions for one episode
         # of the form ((s, a, r'), (s', a', r''), ...)
         # num_steps is the number of steps since the beginning of the trajectory, this is useful for the online actor-critic
+        # note that s must be a tuple (not a numpy array) or else indexing doesn't work properly
+
         total_reward = 0
         total_discount = self.discount ** ((len(trajectory) - 1) + num_steps_from_start)
 
@@ -127,11 +131,16 @@ class PGAgent:
             if self.use_natural_pg:
                 # self.param[s[0], s[1], a] += step_size * total_discount * (q_values[(s[0], s[1], a)] - (baseline + perturb)) / np.clip(self.get_policy_prob(s)[a], 1e-5, 1)
                 # is the discount factor correct?
-                p = np.clip(self.get_policy_prob(s)[a], 1e-5, 1)
+                p = np.clip(self.get_policy_prob(s)[a], 1e-6, 1)
                 natural_grad = -np.ones(self.num_actions, dtype='float') / (self.num_actions * p) + 1 / p * onehot
                 self.param[s] += step_size * total_discount * (q_values[(s[0], s[1], a)] - (baseline + perturb)) * natural_grad
 
             else:
+                # print("adv", q_values[s[0], s[1], a] - baseline)
+
+                if self.relative_perturb:
+                    adv_size = np.max(np.abs(q_values[s[0], s[1]] - baseline))
+                    perturb = perturb * adv_size
                 self.param[s] += step_size * total_discount * (
                             (q_values[(s[0], s[1], a)] - (baseline + perturb)) * (onehot - self.get_policy_prob(s)))
 
@@ -211,7 +220,6 @@ class PGAgent:
             denom = 1 - np.sum(np.square(policy_probs))
             num = np.sum(np.square(policy_probs)) - policy_probs[index]**2 + (1-policy_probs[index])**2
             weight = num * policy_probs[index] / denom
-
         return weight
 
     def _estimate_minvar_baseline(self, num_rollouts=100, importance_sampling=True):
@@ -287,18 +295,24 @@ class PGAgent:
             raise AssertionError("invalid env {}".format(self.env.name))
 
 if __name__ == '__main__':
+    import matplotlib.pyplot as plt
     np.set_printoptions(suppress=True, linewidth=1000)
     print('Running!')
     # gridsize = (5,5)
-    step_size = 0.01
-    perturb = -1.0
+    step_size = 0.5
+    perturb = 1
     # num_steps = 1000
-    num_episodes = 300
+    num_episodes = 500
+    disc = 0.99
 
-    env = SimpleMDP.FourRoomsEnv()
+
+    env = SimpleMDP.FourRoomsEnv(extra_wall=False, wall_penalty=False)
     # env = SimpleMDP.BinomialTreeMDP(depth=10)
-    agent = PGAgent(num_actions=4, baseline_type='minvar', discount=0.99, env=env,
-                    use_natural_pg=True)
+    agent = PGAgent(num_actions=4, baseline_type='minvar', discount=disc, env=env,
+                    use_natural_pg=False, relative_perturb=True)
+
+    # rng = np.random.RandomState(3)
+    # agent.param = rng.normal(0.0, 1, (10, 10, 4)) # what if we use policies with less entropy?
 
     # q = agent._solve_q_values()
     # # val = np.mean(q, axis=2)
@@ -322,12 +336,13 @@ if __name__ == '__main__':
     state = env.reset()
 
     start_time = time.perf_counter()
-    max_steps = 200
+    max_steps = 100
     num_steps_per_ep = []
     returns = []
+    action_entropy_trajectory = []
+    action_entropy_all_states = []
 
     for i_ep in range(num_episodes):
-        print("ep {}".format(i_ep))
         done = False
         trajectory = []
         steps = 0
@@ -337,9 +352,14 @@ if __name__ == '__main__':
         s0_param = []
         prev_policy_prob = []
 
+        total_entropy = 0
+
         while not done:
             # print(trajectory)
             prev_state = state
+
+            # print(agent.get_entropy(state))
+            total_entropy += agent.get_entropy(state)
 
             action = agent.get_action(state)
             state, reward, done = env.step(action)
@@ -348,8 +368,7 @@ if __name__ == '__main__':
 
             prev_policy_prob.append((act2str(action), np.round(agent.get_policy_prob(prev_state, True), 3)))
 
-            # if args.alg == 'online_ac_true_q':
-                # update only on the most recent transition
+            # update only on the most recent transition
             # agent.update_ac_true_q([trajectory[-1]], step_size, perturb, num_steps_from_start=0)# steps)
 
 
@@ -361,16 +380,24 @@ if __name__ == '__main__':
             steps += 1
             if steps >= max_steps:
                 break
-
+        # log stuff
         for s, a, _ in trajectory:
             prev_policy_prob.append((act2str(a), np.round(agent.get_policy_prob(s), 3) ))
+
+        action_entropy_trajectory.append(total_entropy/steps)
+
+        all_entropies = []
+        for i in range(10):
+            for j in range(10):
+                all_entropies.append(softmax_entropy(agent.get_policy_prob([i,j],True)))
+        action_entropy_all_states.append(np.mean(all_entropies))
 
         # do updates
         # print(prev_policy_prob)
         # print(count_s0, s0_policy)
         # print(count_s0, s0_param)
         # print([a for a, prob in prev_policy_prob])
-        print('rew', reward, round(reward * 0.99**steps,3), 'steps', steps, 'goal', state)
+        print('ep', i_ep, 'rew', reward, round(reward * disc**steps,3), 'steps', steps, 'goal', state)
         num_steps_per_ep.append(steps)
 
         # agent.update_reinforce(trajectory, step_size, perturb)
@@ -379,7 +406,7 @@ if __name__ == '__main__':
         state = env.reset()
         # prev_state = None
 
-        returns.append(reward * 0.99**steps)
+        returns.append(reward * disc**steps)
         # agent = np.sum([_, _, r for transition in trajectory])
 
         # check
@@ -392,11 +419,48 @@ if __name__ == '__main__':
 
             current_policy_prob.append((act2str(a), np.round(agent.get_policy_prob(s), 3)))
 
-
-
     print(num_steps_per_ep)
     print(np.round(returns, 2))
     print((time.perf_counter() - start_time) / 60, 'min')
     pass
 
 
+    def running_mean(x, N):
+        cumsum = np.cumsum(np.insert(x, 0, 0))
+        return (cumsum[N:] - cumsum[:-N]) / float(N)
+
+
+    import matplotlib.pyplot as plt
+    window = 10
+    plt.figure()
+    plt.plot(running_mean(action_entropy_trajectory, window))
+    plt.plot(running_mean(action_entropy_all_states, window))
+    plt.ylim(0, 1.4)
+
+    plt.title('baselines{}'.format(perturb))
+    plt.figure()
+    plt.plot(running_mean(returns, window))
+    plt.ylim(0,1)
+    plt.title('baselines{}'.format(perturb))
+
+
+    # agent.param = np.random.normal(0.0, 0.0, (10, 10, 4)) # what if we use policies with less entropy?
+
+    q_values = agent._solve_q_values()
+
+    full_policy = np.zeros([10, 10, 4])
+    entropies = np.zeros([10, 10])
+    for i in range(10):
+        for j in range(10):
+            full_policy[i,j] = agent.get_policy_prob((i,j), True)
+            entropies[i,j] = softmax_entropy(agent.param[i,j])
+            # print(full_policy[i,j])
+
+    v_values = np.sum(q_values * full_policy, axis=2)
+    print(np.round(v_values, 3))
+    print(np.round(entropies, 3))
+    print(np.round(np.max(full_policy, axis=2), 3))
+    print(np.argmax(full_policy, axis=2))
+    vis_policy = np.argmax(full_policy)
+
+    plt.show()

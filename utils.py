@@ -17,5 +17,11 @@ def logsumexp(prob_lst):
 def softmax(x):
     x = x - np.max(x)
     x = np.exp(x)
-
     return x / np.sum(x)
+
+def softmax_entropy(x):
+    # x are the logits
+    p = softmax(x)
+    c = np.max(x)
+    logpi = x - np.log(np.sum(np.exp(x - c))) - c
+    return -np.sum(p * logpi)

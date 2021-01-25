@@ -1,5 +1,4 @@
 #####
-# TODO finish this
 # Three armed bandit
 #
 #
@@ -9,7 +8,39 @@ import numpy as np
 from numba import jit
 import math
 import matplotlib.pyplot as plt
+import time
+import ternary
 
+def plot_trajectories(trajectory_data, title, nocolor=False, savefile=None):
+
+    num_runs = trajectory_data.shape[0]
+
+    figure, tax = ternary.figure(scale=1.0)
+    tax.boundary()
+    tax.get_axes().axis('off')
+    tax.gridlines(multiple=0.2, color="black")
+    tax.set_title(title+'\n', fontsize=20)
+    tax.right_corner_label("R = 1.0")
+    tax.top_corner_label("R = 0.7")
+    tax.left_corner_label("R = 0.0")
+    for run in range(num_runs):
+        points = trajectory_data[run]
+        if nocolor:
+            tax.plot(points, linewidth=1.0, alpha=0.5, color='black')
+        else:
+            tax.plot_colored_trajectory(points, linewidth=1.0, alpha=0.5)
+        tax.scatter([points[0]], marker='o', color='black', s=64)
+        tax.scatter([points[-1]], marker='o', color='red', s=64, edgecolors='red')
+    # tax.show()
+    return figure, tax
+
+def plot_baseline_stats(data):
+    data_max = np.max(data, axis=0)
+    data_min = np.min(data, axis=0)
+    data = np.mean(data, axis=0)
+    plt.plot(data)
+    plt.plot(data_max, label='max')
+    plt.plot(data_min, label='min')
 
 # @jit(nopython=True)
 def sigmoid(x):
@@ -33,14 +64,15 @@ def project(x):
     #     return 1-1e-12
     # else:
     #     return x
-    return np.clip(x, 1e-10, 1-1e-10)
+    # return np.clip(x, 1e-12, 1-1e-12)
+    return np.clip(x, 0, 1)
 
 class ThreeArmedBandit:
-    def __init__(self, rewards, init_param, baseline_type='minvar', perturb_baseline=0.0, optimizer='natural', parameterization='softmax', seed=None):
+    def __init__(self, rewards, init_param, baseline_type='minvar', perturb_baseline=0.0, optimizer='vanilla', parameterization='softmax', seed=None):
         # This class defines both the environment and the agent
         self.rewards = rewards  # list of rewards
         self.baseline_type = baseline_type #  either 'minvar' or 'value'
-        self.optimizer = optimizer  # in 'regular' (usual sgd), 'projected' (projected gd), 'natural' (natural gd)  # only natural works now
+        self.optimizer = optimizer  # in 'vanilla' (usual sgd), 'projected' (projected gd), 'natural' (natural gd)
         self.parameterization = parameterization  # in ('direct', 'softmax')  # only softmax works for now
 
         self.init_param = init_param  # list of initial parameters
@@ -76,14 +108,20 @@ class ThreeArmedBandit:
         return baseline
 
     def _weight_optimal_baseline(self, index, policy_probs):
-        denom = np.sum(policy_probs * (1-policy_probs))
-        num = np.sum(np.square(policy_probs)) - policy_probs[index]**2 + (1-policy_probs[index])**2
-        return num * policy_probs[index] / denom
+        if self.optimizer == 'vanilla':
+            # policy_probs = np.clip(policy_probs, 1e-6, 1)
+            denom = np.sum([policy_probs[index] / policy_probs])
+            weight = 1 / denom
+        elif self.optimizer == 'natural':
+            denom = 1 - np.sum(np.square(policy_probs))
+            num = np.sum(np.square(policy_probs)) - policy_probs[index]**2 + (1-policy_probs[index])**2
+            weight = num * policy_probs[index] / denom
+        return weight
 
     def get_sgd(self, test_param=None):
         ''' Returns stochastic gradient for current parameter '''
         p = self.get_prob(test_param)
-        p = p / np.sum(p)
+        p = p / np.sum(p)  # renormalize since we might clip the probabilities
 
         if self.baseline_type == 'minvar':
             b = self.get_optimal_baseline(test_param) + self.perturb_baseline
@@ -96,11 +134,16 @@ class ThreeArmedBandit:
         # act = self.rng.randint(0, 3)
         act = self.rng.choice([0,1,2], p=p)
         # print("act", act)
+        if self.parameterization == 'softmax':
+            if self.optimizer == 'vanilla':
+                onehot = np.zeros(3)
+                onehot[act] = 1
+                grad = onehot - p
 
-        if self.parameterization == 'softmax' and self.optimizer == 'natural':
-            # this is the minimum-norm update
-            # grad = np.ones(3, dtype='float') / (2*p[act]) + 1 / p[act] * basis_vector(act)
-            grad = -np.ones(3, dtype='float') / (3 * p[act]) + 1 / p[act] * basis_vector(act)
+            if self.optimizer == 'natural':
+                # this is the minimum-norm update
+                # grad = np.ones(3, dtype='float') / (2*p[act]) + 1 / p[act] * basis_vector(act)
+                grad = -np.ones(3, dtype='float') / (3 * p[act]) + 1 / p[act] * basis_vector(act)
         else:
             raise AssertionError('invalid parameterization or optimizer')
 
@@ -112,62 +155,11 @@ class ThreeArmedBandit:
         self.param = self.param + step_size * self.get_sgd(test_param)
 
 
-    def get_possible_gradients(self, test_param, return_next_params=False, step_size=0):
-        ''' Returns the possible gradients and their probabilities starting at test_param
-        The returned list is for [(grad1, prob1), (grad2, prob2)]
-        test_param : the parameter at which to compute gradients
-        return_next_params: if true, return the next parameter values instead of the gradients
-        alpha: step size to use (only works if return_next_params is true) '''
-        # print(self.adaptive_baseline())
-
-        # only supports natural gradient descent right now
-        if self.optimal_baseline:
-            if self.adaptive_base:
-                b = self.get_optimal_baseline(test_param) + self.perturb_baseline*self.adaptive_baseline(test_param)
-            else:
-                b = self.get_optimal_baseline(test_param) + self.perturb_baseline
-        else:
-            b = 0
-
-        p = self.get_prob(test_param)
-        if self.parameterization == 'direct':
-            gradients = [((self.r1 - b) / p, p), (-(self.r2 - b) / (1 - p), 1-p)]
-
-        elif self.parameterization == 'sigmoid':
-            gradients = [((self.r1 - b) * (1 - p), p), (-(self.r2 - b) * p, 1-p)]
-
-        if return_next_params:
-            next_params = []
-            for grad, prob in gradients:
-                if self.optimizer == 'projected':
-                    next_params.append((project(test_param + step_size * grad), prob))
-                elif self.optimizer == 'regular':
-                    next_params.append((test_param + step_size * grad, prob))
-                if self.optimizer == 'natural':
-                    if self.parameterization == 'direct':
-                        next_params.append((test_param + step_size * grad * (prob*(1-prob)), prob))
-                    elif self.parameterization == 'sigmoid':
-                        next_params.append((test_param + step_size * grad / (prob*(1-prob)), prob))
-
-            return next_params
-        else:
-            return gradients
-
-    def do_sgd_step_action(self, step_size, action):
-        ''' Does an update corresponding to the action specified.
-        Returns the probability of the update occuring
-        action: the index of the action taken '''
-        updates = self.get_possible_gradients(self.param, True, step_size)
-
-        # assert action in (1, 2)
-        self.param = updates[action-1][0]
-        return updates[action-1][1]
-
     def reset(self):
         self.param = self.init_param
 
 
-def run_experiment(num_runs, num_steps, rewards, step_size, perturb, init_param, baseline_type, optimizer='natural', parameterization='softmax', save_file=None):
+def run_experiment(num_runs, num_steps, rewards, step_size, perturb, init_param, baseline_type, optimizer, parameterization='softmax', save_file=None):
     param_data = []
     prob_data = []
     for i_run in range(num_runs):
@@ -192,41 +184,91 @@ def run_experiment(num_runs, num_steps, rewards, step_size, perturb, init_param,
 
 if __name__ == "__main__":
     ## training loop
-    rewards = [1, 0.7, 0]
-    num_runs = 500
-    num_steps = 300
-    step_size = 0.3
-    perturb = 0.0
-    init_param = np.array([0.0, 3, 0])
-    optimizer = 'natural'
+    rewards = [0.1, 0.07, 0]
+    num_runs = 15
+    num_steps = 1000
+    step_size = 0.1
+    perturb = 1.0
+    init_param = np.array([0.0, 0.0, 0.0])  # [0, 0.2, 2]
+    print(softmax(init_param))
+    optimizer = 'vanilla'
     parameterization = 'softmax'
-    baseline_type = 'value'
-    save_file = 'results/param_data'
+    baseline_type = 'minvar'
+    save_file = None #'results/param_data'
 
     param_data, prob_data = run_experiment(num_runs=num_runs, num_steps=num_steps, rewards=rewards,
-                       step_size=step_size, perturb=perturb, baseline_type=baseline_type,
+                       step_size=step_size, perturb=perturb, baseline_type=baseline_type, optimizer=optimizer,
                        init_param=init_param,
-                       save_file='results/param_data')
+                       save_file=save_file)
 
     plt.figure()
     # num_lines = 200
     for i in range(num_runs):
-        plt.plot((prob_data[i, :, 0]), color='b', alpha=0.08)
+        plt.plot((prob_data[i, :, 0]), color='b', alpha=0.2)
+        # plt.plot((prob_data[i, :, 1]), color='g', alpha=0.2)
+        # plt.plot((prob_data[i, :, 2]), color='r', alpha=0.2)
     plt.ylim(0, 1)
     plt.ylabel("prob of act 1")
 
-    plt.figure()
+    # plt.figure()
     # num_lines = 200
+    # for i in range(num_runs):
+    #     plt.plot((prob_data[i, :, 1]), color='g', alpha=0.2)
+    # plt.ylim(0, 1)
+    # plt.ylabel("prob of act 2")
+
+    plt.figure()
+    avg_rewards = []
     for i in range(num_runs):
-        plt.plot((prob_data[i, :, 1]), color='g', alpha=0.08)
-    plt.ylim(0, 1)
-    plt.ylabel("prob of act 2")
+        avg_reward_traj = np.sum(prob_data[i, :, :] * np.array(rewards), axis=1)
+        avg_rewards.append(avg_reward_traj)
+        plt.plot(avg_reward_traj, color='b', alpha=0.2)
+    avg_rewards = np.array(avg_rewards)
+
+    mean = np.mean(avg_rewards, axis=0)
+    std = np.std(avg_rewards, axis=0)
+    plt.plot(np.mean(avg_rewards, axis=0), color='red', linewidth=2)
+    plt.fill_between(range(len(mean)), mean - std, mean + std, alpha=0.10, color='red')
+    plt.ylim(0,1)
+    plt.ylabel("average reward")
+
+    # bad_threshold = 0.01
+    # print("final proportion of bad <{}".format(bad_threshold), np.mean(prob_data[:, -1, 0] < bad_threshold))
+
+    plot_trajectories(prob_data[:, 0:100, :], "baseline{}".format(perturb))
+
+    def save_ternary_gif(prob_data, plot_name, num_frames=100, folder_name=''):
+        # prob_data dimensions are num_runs x num_steps x num_actions
+
+        N = prob_data.shape[1]
+        for i in range(0, N+1, int(N/num_frames)):
+            fig, tax = plot_trajectories(prob_data[:, 0:(max(1,i)), :], plot_name+' step '+str(i), nocolor=True)
+            fig.savefig('three_armed_bandit_gif/{}{}/{}_frame_{}.png'.format(folder_name, plot_name, plot_name, i), bbox_inches='tight')
+            # plt.clf()
+            # plt.close()
+            # time.sleep(5)
+            plt.clf()
+
+            plt.close()
 
 
-    bad_threshold = 0.01
-    print("final proportion of bad <{}".format(bad_threshold), np.mean(prob_data[:, -1, 0] < bad_threshold))
+    save_ternary_gif(prob_data, "baseline{}".format(perturb), folder_name='uniform_init_')
+
 
     quit()
+
+    import glob
+    from PIL import Image
+
+    fp_in = "/path/to/image_*.png"
+    fp_out = "/path/to/image.gif"
+
+    # https://pillow.readthedocs.io/en/stable/handbook/image-file-formats.html#gif
+    img, *imgs = [Image.open(f) for f in sorted(glob.glob(fp_in))]
+    img.save(fp=fp_out, format='GIF', append_images=imgs,
+             save_all=True, duration=200, loop=0)
+
+
 
     # print(param_data[:, -1])
     # print(np.unique(param_data[:, -1]))
@@ -259,104 +301,6 @@ if __name__ == "__main__":
     for i in range(num_runs):
         plt.loglog(regret[i, :], color='lightblue', alpha=0.5)
     plt.loglog(np.mean(regret, axis=0), color='blue')
-
-    def check_jumps(param_data):
-        # counts the number of jumps from high theta to low theta and vice versa
-        jump_threshold_size = 2
-        step_size = 0.1
-        jump_up = 0
-        jump_down = 0
-        for i in range(param_data.shape[0]-1):
-            downs = np.sum(param_data[:,i+1] - param_data[:, i] < -jump_threshold_size)
-            if downs != 0:
-                print("down at", i)
-            jump_down += downs
-
-            jump_up += np.sum(param_data[:, i+1] - param_data[:, i] > jump_threshold_size)
-
-        return jump_up, jump_down
-
-    print("num jumps", check_jumps(param_data))
-
-    # np.save("quick_bandit_test_{}".format(perturb), param_data)
-    # # load regret
-    # plt.figure()
-    # colors2 = ['lightblue', 'lightgreen']
-    # colors = ['b', 'g']
-    # perturbs = [1.0, -1.0]
-    #
-    # for i_hyp in (0,1):
-    #
-    #     perturb = perturbs[i_hyp]
-    #     param_data = np.load("quick_bandit_test_{}.npy".format(perturb))
-    #     prob_data = sigmoid(param_data)
-    #
-    #     regret = 1 - prob_data
-    #     regret = np.cumsum(regret, axis=1)
-    #
-    #     for i in range(num_runs):
-    #         plt.plot(regret[i,:], color=colors2[i_hyp], alpha=0.08)
-    #     plt.plot(np.mean(regret, axis=0), color=colors[i_hyp])
-    # plt.ylim(0, 50)
-    # plt.title("Regrets")
-
-
-    # random walk test
-    # rw_data = []
-    # for i in range(num_runs):
-    #     rw_run = [0.0]
-    #     for t in range(num_steps):
-    #         if np.random.rand() < 0.5:
-    #             rw_run.append(rw_run[t] - 3*step_size)
-    #         else:
-    #             rw_run.append(rw_run[t] + 3*step_size)
-    #
-    #     rw_data.append(rw_run)
-    # rw_data = np.array(rw_data)
-    # plt.hist(np.log(np.abs(rw_data[:, -1])),  bins=100)
-
-    # perturbs = np.arange(-1, 6.1, 0.5)
-    # []
-    # for perturb in perturbs:
-    #     print('perturb', perturb)
-
-    #
-    #
-    # ###### For plotting
-    # import numpy as np
-    # import matplotlib.pyplot as plt
-    # from utils import *
-    #
-    # # step_size = 0.03
-    # # perturb = 5.0
-    #
-    # save_file + "_init{}_step{}_pert{}_{}_{}_steps{}".format(init_param, step_size, perturb, optimizer,
-    #                                                          parameterization, num_steps)
-    #
-    # title = "step{}_pert{}_nat_sigmoid".format(step_size, perturb)
-    # param_data = np.load("results/param_data_step{}_pert{}_nat_sigmoid_2step.npy".format(step_size, perturb))
-    # num_runs, num_steps = param_data.shape
-    #
-    #
-    # plt.figure()
-    # plt.hist(sigmoid(param_data[:, -1]), bins=100, range=[0, 1])
-    # plt.ylim(0, num_runs)
-    # plt.title(title)
-    #
-    # print('final mean', np.mean(sigmoid(param_data[:, -1])))
-    #
-    # plt.figure()
-    # # num_lines = 200
-    # # for i in np.random.randint(0, num_runs, num_lines):
-    # for i in range(num_runs):
-    #     plt.plot(sigmoid(param_data[i, :]), color='b', alpha=0.08)
-    # plt.ylim(0, 1)
-    # plt.title(title)
-    #
-    # plt.show()
-
-
-
 
 
 

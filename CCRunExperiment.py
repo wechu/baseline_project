@@ -148,7 +148,7 @@ for i_run in range(num_runs):
         env = SimpleMDP.BinomialTreeMDP(depth=config.env_params[0]["depth"])
         num_actions = 2
     elif config.environments[0] == 'fourrooms':
-        env = SimpleMDP.FourRoomsEnv()
+        env = SimpleMDP.FourRoomsEnv(extra_wall=config.env_params[0]['extra_wall'], wall_penalty=config.env_params[0]['wall_penalty'])
         num_actions = 4
         state_visitation = np.zeros([10, 10], dtype='float')
 
@@ -166,7 +166,7 @@ for i_run in range(num_runs):
     baseline_type = config.alg_other_params['baseline_type']
     agent = SimpleAgent.PGAgent(num_actions=num_actions,
                                 discount=hyperparams['discount'], baseline_type=baseline_type, seed=seed, env=env,
-                                use_natural_pg=config.alg_other_params['use_natural_pg'])
+                                use_natural_pg=config.alg_other_params['use_natural_pg'], relative_perturb=config.alg_other_params['relative_perturb'])
     # print(agent.env)
 
     # training loop

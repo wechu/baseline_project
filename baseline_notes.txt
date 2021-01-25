@@ -1,5 +1,18 @@
 
 Notes for the understanding baselines project
+--- Jan 24, 2021
+Three-armed bandit experiments with rewards 1, 0.7, 0:
+- It looks like the previous effects we saw are indeed reproducible. Lower baselines indeed get stuck more often and for longer than larger baselines even if they have the same variance.
+- Looking at the Q-values and state-values, it looks like with a uniform policy, the differences between the Q-values are rather small in any state (usually less than 0.1 and often around 0.1). This means that all the actions look almost the same.
+
+Possible ideas to try:
+- Adjust fourrooms so that it includes a wall between the second-best goal's room and the best goal's room. This will make the effect of the 'trap' going to the second-best room more prominent.
+- Try fourrooms with a smaller perturbation. Since the Q-values only vary by less than 0.1, using a perturbation of 0.5 or 1.0 might be way too big. I checked this in the three-armed bandit and if I use rewards of 0.1, 0.07 and 0.0 (dividing each by 10), then using  a epsilon of +/-1 leads to pretty odd behaviour with no clear difference between positive and negative baselines. Basically, the noise introduced by the perturbations drowns out all the signal. This sounds really promising to me, I'll run this.
+
+Other notes:
+- There was a mistake in the way the action entropy trajectory was computed. It was using param[state] in the agent, which is wrong if state is given as numpy array. It doesn't index the action distribution for the state given.
+
+
 --- Jan 22, 2021
 Using the actor-critic with true q-values doesn't yield any differences between +eps and -eps perturbed min-var baselines on the four-rooms domain.
 Well, there are some minor differences. If anything, it seems like the negative baseline does slightly better.
