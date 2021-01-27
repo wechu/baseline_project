@@ -65,7 +65,7 @@ def project(x):
     # else:
     #     return x
     # return np.clip(x, 1e-12, 1-1e-12)
-    return np.clip(x, 0, 1)
+    return np.clip(x, 1e-6, 1-1e-6)
 
 class ThreeArmedBandit:
     def __init__(self, rewards, init_param, baseline_type='minvar', perturb_baseline=0.0, optimizer='vanilla', parameterization='softmax', seed=None):
@@ -184,14 +184,14 @@ def run_experiment(num_runs, num_steps, rewards, step_size, perturb, init_param,
 
 if __name__ == "__main__":
     ## training loop
-    rewards = [0.1, 0.07, 0]
+    rewards = [1.0, 0.7, 0]
     num_runs = 15
     num_steps = 1000
     step_size = 0.1
-    perturb = 1.0
-    init_param = np.array([0.0, 0.0, 0.0])  # [0, 0.2, 2]
+    perturb = 0.0
+    init_param = np.array([0.0, 2.0, 5.0])  # [0, 0.2, 2]
     print(softmax(init_param))
-    optimizer = 'vanilla'
+    optimizer = 'natural'
     parameterization = 'softmax'
     baseline_type = 'minvar'
     save_file = None #'results/param_data'
@@ -235,8 +235,12 @@ if __name__ == "__main__":
     # bad_threshold = 0.01
     # print("final proportion of bad <{}".format(bad_threshold), np.mean(prob_data[:, -1, 0] < bad_threshold))
 
-    plot_trajectories(prob_data[:, 0:100, :], "baseline{}".format(perturb))
+    plot_trajectories(prob_data[:, :, :], "baseline{}".format(perturb))
 
+
+
+
+    # for producing gif
     def save_ternary_gif(prob_data, plot_name, num_frames=100, folder_name=''):
         # prob_data dimensions are num_runs x num_steps x num_actions
 
@@ -251,22 +255,24 @@ if __name__ == "__main__":
 
             plt.close()
 
+    import os
+    subfolder = 'npg_'
 
-    save_ternary_gif(prob_data, "baseline{}".format(perturb), folder_name='uniform_init_')
-
+    os.makedirs('three_armed_bandit_gif/' + subfolder + '/')
+    save_ternary_gif(prob_data, "baseline{}".format(perturb), folder_name=subfolder)
 
     quit()
 
-    import glob
-    from PIL import Image
-
-    fp_in = "/path/to/image_*.png"
-    fp_out = "/path/to/image.gif"
-
-    # https://pillow.readthedocs.io/en/stable/handbook/image-file-formats.html#gif
-    img, *imgs = [Image.open(f) for f in sorted(glob.glob(fp_in))]
-    img.save(fp=fp_out, format='GIF', append_images=imgs,
-             save_all=True, duration=200, loop=0)
+    # import glob
+    # from PIL import Image
+    #
+    # fp_in = "/path/to/image_*.png"
+    # fp_out = "/path/to/image.gif"
+    #
+    # # https://pillow.readthedocs.io/en/stable/handbook/image-file-formats.html#gif
+    # img, *imgs = [Image.open(f) for f in sorted(glob.glob(fp_in))]
+    # img.save(fp=fp_out, format='GIF', append_images=imgs,
+    #          save_all=True, duration=200, loop=0)
 
 
 

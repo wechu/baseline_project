@@ -14,9 +14,9 @@ class Config:
         self.date = '{:02d}_{:02d}_{:02d}_{}'.format(now.month, now.day, now.hour, now.year)
         self.parallelize_runs = False  # use this to split the runs into separate jobs
 
-        self.num_runs = 50
+        self.num_runs = 25
         # self.num_steps = 30000
-        self.num_episodes = 2000  # only one of num_eps or num_steps should be used
+        self.num_episodes = 3000  # only one of num_eps or num_steps should be used
         self.save_freq = 5
         self.save_dir = 'res'
         self.save_tag = ''  # string to add to the saved file name
@@ -27,12 +27,12 @@ class Config:
         self.algorithms = ['ac_true_q']
         self.algs_sweep_params = {'ac_true_q': OD([("step_size", [0.05, 0.1, 0.3, 0.5, 1.0, 3.0]),
                                                    # ("rew_step_size", [0.0]),
-                                                   ("perturb", [-1.0, -0.5, -0.3, -0.1, -0.05, 0, 0.05, 0.1, 0.3, 0.5, 1.0])])
-                                   }  #
+                                                   ("perturb", [-0.5, -0.3, -0.1, -0.05, -0.03, 0, 0.03, 0.05, 0.1, 0.3, 0.5])])
+                                   }
 
         self.shared_sweep_params = OD([('optimizer', ['SGD']),
                                        ('discount', [0.99]),
-                                       ('horizon', [100])])
+                                       ('horizon', [200])])
 
         self.alg_other_params = {'seed': 123, 'baseline_type': 'minvar', 'use_natural_pg': False, 'relative_perturb': False}
         # TODO when adding ADAM, think about where to put beta1 and beta2
@@ -42,4 +42,5 @@ class Config:
                            ]  # this list matches the order of envs in self.environments,
 
 config = Config()
-
+# import Config2
+# config = Config2.Config()

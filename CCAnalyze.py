@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 #
 
 
-path = 'res/01_23_03_2021/1611389904_/'
+path = 'res/01_25_19_2021/1611620319_/'
 
 with open(path + "config.pkl", 'rb') as f:
     config = pickle.load(f)
@@ -97,8 +97,8 @@ def running_mean(x, N):
     return (cumsum[N:] - cumsum[:-N]) / float(N)
 
 # data_ent should be  N_seeds x N_baselines x T array
-step_size = 0.003  # 0.2, 0.3, 0.4, 0.5, 0.6, 0.8, 1.0
-baselines = [-1, -0.5, 0, 0.5, 1]
+step_size = 1.0 # 0.2, 0.3, 0.4, 0.5, 0.6, 0.8, 1.0
+baselines = [-3.0, -2.0, -1.5, -1.0, -0.5, 0.0, 0.5, 1.0, 1.5, 2.0, 3.0]
 
 # metric_index = 0
 for metric_index in range(5):
@@ -136,10 +136,10 @@ for metric_index in range(5):
     # vec = np.logspace(0, np.log10(50000), data_ent.mean(0).T[:, 0].shape[0])
     # T = 10
     # fig_names = ['return', '']
-    colors = [u'b', u'g', u'r', u'c', u'm', u'y'] #['blue', 'dodgerblue', 'black', 'orange', 'red']
+    # colors = [u'b', u'g', u'r', u'c', u'm', u'y'] #['blue', 'dodgerblue', 'black', 'orange', 'red']
     ylabels = ['returns', 'discounted returns', 'Action entropy trajectory', 'Online state visitation entropy', 'Offline state visitation entropy']
 
-    for i in range(len(baselines)):
+    for i in range(len(baselines)): #[2,3,4,5,6,7,8, 9, 10]:
     # for i in [0,2,4]:
         # Plot mean with error bars
         # color = (i/5, 0.2, 1-i/5)
@@ -166,7 +166,7 @@ for metric_index in range(5):
 
     plt.legend()
 
-    plt.savefig('{}.pdf'.format(ylabels[metric_index]), dpi=300, bbox_inches='tight')
+    # plt.savefig('{}.pdf'.format(ylabels[metric_index]), dpi=300, bbox_inches='tight')
 
 
 

@@ -1,5 +1,10 @@
 
 Notes for the understanding baselines project
+--- Jan 26, 2021
+res/01_25_01_2021/1611557606_ : relative perturbation experiment with vanilla PG.
+
+res/01_23_03_2021/1611389904_ : Natural PG experiment
+
 --- Jan 24, 2021
 Three-armed bandit experiments with rewards 1, 0.7, 0:
 - It looks like the previous effects we saw are indeed reproducible. Lower baselines indeed get stuck more often and for longer than larger baselines even if they have the same variance.
