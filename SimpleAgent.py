@@ -300,7 +300,7 @@ if __name__ == '__main__':
     print('Running!')
     # gridsize = (5,5)
     step_size = 0.5
-    perturb = 1
+    perturb = -1.5
     # num_steps = 1000
     num_episodes = 500
     disc = 0.99

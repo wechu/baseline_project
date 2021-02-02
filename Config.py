@@ -12,9 +12,9 @@ class Config:
         self.id = int(time.time())  # use Unix time as a unique id
         now = datetime.datetime.now()
         self.date = '{:02d}_{:02d}_{:02d}_{}'.format(now.month, now.day, now.hour, now.year)
-        self.parallelize_runs = False  # use this to split the runs into separate jobs
+        self.parallelize_runs = False # use this to split the runs into separate jobs
 
-        self.num_runs = 25
+        self.num_runs = 20
         # self.num_steps = 30000
         self.num_episodes = 3000  # only one of num_eps or num_steps should be used
         self.save_freq = 5
@@ -27,8 +27,9 @@ class Config:
         self.algorithms = ['ac_true_q']
         self.algs_sweep_params = {'ac_true_q': OD([("step_size", [0.05, 0.1, 0.3, 0.5, 1.0, 3.0]),
                                                    # ("rew_step_size", [0.0]),
-                                                   ("perturb", [-0.5, -0.3, -0.1, -0.05, -0.03, 0, 0.03, 0.05, 0.1, 0.3, 0.5])])
+                                                   ("perturb", [-1.0, -0.5, -0.3, -0.1, -0.05, -0.03, 0, 0.03, 0.05, 0.1, 0.3, 0.5, 1.0])])
                                    }
+
 
         self.shared_sweep_params = OD([('optimizer', ['SGD']),
                                        ('discount', [0.99]),

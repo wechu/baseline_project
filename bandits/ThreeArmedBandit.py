@@ -187,7 +187,7 @@ if __name__ == "__main__":
     rewards = [1.0, 0.7, 0]
     num_runs = 15
     num_steps = 1000
-    step_size = 0.1
+    step_size = 0.05
     perturb = 0.0
     init_param = np.array([0.0, 2.0, 5.0])  # [0, 0.2, 2]
     print(softmax(init_param))
