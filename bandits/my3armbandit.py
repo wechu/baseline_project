@@ -6,7 +6,7 @@
 #####
 
 '''
-Code used to the 3 arm bandits plots
+Code used to generate the 3 arm bandits plots
 
 Example usage:
 $python my3armbandit.py minvar 0.5
@@ -40,15 +40,17 @@ def plot_trajectories(trajectory_data, title, nocolor=True, theta_0=None, step_s
     tax.right_corner_label("R = 1.0", fontsize=15)
     tax.top_corner_label("R = 0.7", fontsize=15)
     tax.left_corner_label("R = 0.0",fontsize=15)
-
-    if theta_0 is not None:
-        L = trajectory_data.shape[1]
-        true_point = []
-        theta_i = theta_0
-        for i in range(L):
-            true_point.append(softmax(theta_i))
-            theta_i += step_size*np.array([1, 0.7, 0])
-        #tax.plot(true_point, linewidth=4.0, alpha=0.6, color='black')
+    
+    ## Uncomment this block to plot the true gradient trajectory (only for NPG
+    ## with softmax parameterization for now
+    #if theta_0 is not None:
+    #    L = trajectory_data.shape[1]
+    #    true_point = []
+    #    theta_i = theta_0
+    #    for i in range(L):
+    #        true_point.append(softmax(theta_i))
+    #        theta_i += step_size*np.array([1, 0.7, 0])
+    #    tax.plot(true_point, linewidth=4.0, alpha=0.6, color='black')
 
     for run in range(num_runs):
         points = trajectory_data[run]
@@ -62,29 +64,6 @@ def plot_trajectories(trajectory_data, title, nocolor=True, theta_0=None, step_s
     ax.set_aspect(2/np.sqrt(3))
     tax.show()
     return figure, tax
-
-# def plot_trajectories(trajectory_data, title, nocolor=False, savefile=None):
-#
-#     num_runs = trajectory_data.shape[0]
-#
-#     figure, tax = ternary.figure(scale=1.0)
-#     tax.boundary()
-#     tax.get_axes().axis('off')
-#     tax.gridlines(multiple=0.2, color="black")
-#     tax.set_title(title+'\n', fontsize=20)
-#     tax.right_corner_label("R = 1.0")
-#     tax.top_corner_label("R = 0.7")
-#     tax.left_corner_label("R = 0.0")
-#     for run in range(num_runs):
-#         points = trajectory_data[run]
-#         if nocolor:
-#             tax.plot(points, linewidth=1.0, alpha=0.5, color='black')
-#         else:
-#             tax.plot_colored_trajectory(points, linewidth=1.0, alpha=0.5)
-#         tax.scatter([points[0]], marker='o', color='black', s=64)
-#         tax.scatter([points[-1]], marker='o', color='red', s=64, edgecolors='red')
-#     # tax.show()
-#     return figure, tax
 
 def plot_baseline_stats(data):
     data_max = np.max(data, axis=0)
@@ -258,10 +237,10 @@ if __name__ == "__main__":
     ## training loop
     print(sys.argv)
     rewards = np.array([1.0, 0.7, 0])
-    num_runs = 15
+    num_runs = 15 # too much will clutter the simplex plots
     num_steps = 10000
     step_size = 0.05
-    baseline_type = str(sys.argv[1]) # value minvar
+    baseline_type = str(sys.argv[1]) # value minvar fixed
     perturb = float(sys.argv[2])
     optimizer = 'vanilla' #vanilla or natural
     parameterization = 'softmax' #softmax or direct
@@ -275,23 +254,7 @@ if __name__ == "__main__":
     param_data, prob_data = run_experiment(num_runs=num_runs,
             num_steps=num_steps, rewards=rewards, parameterization = parameterization, step_size=step_size, perturb=perturb, baseline_type=baseline_type, optimizer=optimizer, init_param=init_param, save_file=save_file)
     sns.set_context('talk')
-    # plt.figure()
-    # # num_lines = 200
-    # for i in range(num_runs):
-    #     plt.plot((1-prob_data[i, :, 0]), color='b', alpha=0.2)
-    #     # plt.plot((prob_data[i, :, 1]), color='g', alpha=0.2)
-    #     # plt.plot((prob_data[i, :, 2]), color='r', alpha=0.2)
-    # #plt.ylim(0, 1)
-    # #plt.yscale('symlog')
-    # plt.ylabel("prob of act 1")
 
-    # plt.figure()
-    # num_lines = 200
-    # for i in range(num_runs):
-    #     plt.plot((prob_data[i, :, 1]), color='g', alpha=0.2)
-    # plt.ylim(0, 1)
-    # plt.ylabel("prob of act 2")
-    print(prob_data[:, -1, 0].mean())
 
     fig = plt.figure()
     plt.grid()
@@ -321,82 +284,5 @@ if __name__ == "__main__":
     fig.savefig(f'three_armed_bandit_results/{optimizer}_{baseline_type}_{perturb}_eta={step_size}'.replace('.', ''), bbox_inches='tight')
     plt.show()
 
-    # bad_threshold = 0.01
-    # print("final proportion of bad <{}".format(bad_threshold), np.mean(prob_data[:, -1, 0] < bad_threshold))
-
     fig, tax = plot_trajectories(prob_data[:, :, :], "baseline{}".format(perturb), theta_0=init_param, step_size=step_size)
     fig.savefig(f'three_armed_bandit_results/{optimizer}_{baseline_type}_{perturb}'.replace('.', ''), bbox_inches='tight')
-    #
-    #
-    #
-    #
-    #
-    # # import glob
-    # # from PIL import Image
-    # #
-    # # fp_in = "/path/to/image_*.png"
-    # # fp_out = "/path/to/image.gif"
-    # #
-    # # # https://pillow.readthedocs.io/en/stable/handbook/image-file-formats.html#gif
-    # # img, *imgs = [Image.open(f) for f in sorted(glob.glob(fp_in))]
-    # # img.save(fp=fp_out, format='GIF', append_images=imgs,
-    # #          save_all=True, duration=200, loop=0)
-    #
-    #
-    #
-    # # print(param_data[:, -1])
-    # # print(np.unique(param_data[:, -1]))
-    # print("final avg performance", np.mean(sigmoid(param_data[:,-1])))
-    # bad_threshold = 0.01
-    # print("final proportion of bad <{}".format(bad_threshold), np.mean(sigmoid(param_data[:,-1]) < bad_threshold))
-    #
-    # # plt.figure()
-    # # plt.hist(sigmoid(param_data[:, -1]),  bins=100)
-    # # plt.hist(np.log(np.abs(param_data[:, -1])),  bins=100)
-    #
-    # # plot the learning curves
-    # plt.figure()
-    # # num_lines = 200
-    # # for i in np.random.randint(0, num_runs, num_lines):
-    # for i in range(num_runs):
-    #     plt.plot(sigmoid(param_data[i, :]), color='b', alpha=0.08)
-    # plt.ylim(0, 1)
-    #
-    # # compute regret
-    # def compute_regret(param_data):
-    #     prob_data = sigmoid(param_data)
-    #     regret = 1 - prob_data
-    #     regret = np.cumsum(regret, axis=1)
-    #     return regret
-    #
-    # regret = compute_regret(param_data)
-    #
-    # plt.figure()
-    # for i in range(num_runs):
-    #     plt.loglog(regret[i, :], color='lightblue', alpha=0.5)
-    # plt.loglog(np.mean(regret, axis=0), color='blue')
-    #
-    #
-    # # for producing gif
-    # def save_ternary_gif(prob_data, plot_name, num_frames=100, folder_name=''):
-    #     # prob_data dimensions are num_runs x num_steps x num_actions
-    #
-    #     N = prob_data.shape[1]
-    #     for i in range(0, N+1, int(N/num_frames)):
-    #         fig, tax = plot_trajectories(prob_data[:, 0:(max(1,i)), :], plot_name+' step '+str(i), nocolor=True)
-    #         fig.savefig('three_armed_bandit_gif/{}/{}_frame_{}.png'.format(folder_name, plot_name, i), bbox_inches='tight')
-    #         # plt.clf()
-    #         # plt.close()
-    #         # time.sleep(5)
-    #         plt.clf()
-    #
-    #         plt.close()
-    #
-    # import os
-    # subfolder = 'npg_'
-    #
-    # #os.makedirs('three_armed_bandit_gif/' + subfolder + '/')
-    # save_ternary_gif(prob_data, "baseline{}".format(perturb), folder_name=subfolder)
-    #
-    # quit()
-    #
