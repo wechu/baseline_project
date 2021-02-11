@@ -184,14 +184,14 @@ def run_experiment(num_runs, num_steps, rewards, step_size, perturb, init_param,
 
 if __name__ == "__main__":
     ## training loop
-    rewards = [1.0, 0.7, 0]
+    rewards = [0.1, 0.07, 0]
     num_runs = 15
     num_steps = 1000
-    step_size = 0.05
-    perturb = 0.0
-    init_param = np.array([0.0, 2.0, 5.0])  # [0, 0.2, 2]
+    step_size = 0.1
+    perturb = -1.0
+    init_param = np.array([0.0, 0.0, 0.0])  # [0, 0.2, 2] [0, 2,5]
     print(softmax(init_param))
-    optimizer = 'natural'
+    optimizer = 'vanilla'
     parameterization = 'softmax'
     baseline_type = 'minvar'
     save_file = None #'results/param_data'
@@ -244,6 +244,8 @@ if __name__ == "__main__":
     def save_ternary_gif(prob_data, plot_name, num_frames=100, folder_name=''):
         # prob_data dimensions are num_runs x num_steps x num_actions
 
+        os.makedirs('three_armed_bandit_gif/' + subfolder + plot_name, exist_ok=True)
+
         N = prob_data.shape[1]
         for i in range(0, N+1, int(N/num_frames)):
             fig, tax = plot_trajectories(prob_data[:, 0:(max(1,i)), :], plot_name+' step '+str(i), nocolor=True)
@@ -256,9 +258,10 @@ if __name__ == "__main__":
             plt.close()
 
     import os
-    subfolder = 'npg_'
+    subfolder = 'vpg'
 
-    os.makedirs('three_armed_bandit_gif/' + subfolder + '/')
+    # os.makedirs('three_armed_bandit_gif/' + subfolder, exist_ok=True)
+
     save_ternary_gif(prob_data, "baseline{}".format(perturb), folder_name=subfolder)
 
     quit()

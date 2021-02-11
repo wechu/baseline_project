@@ -1,48 +1,54 @@
-#####
-# Three armed bandit
-#
-#
-#
-#####
 
 '''
-Code used to generate the 3 arm bandits plots
+This code runs the 3-armed bandit experiment and generates plots.
+
+Requires the installation of ternary package: pip install python-ternary
 
 Example usage:
-$python my3armbandit.py minvar 0.5
-for running the script with the minimum variance baseline and a peturbation of +0.5
+$python 3-armed_bandit.py minvar 0.5
+for running the script with the minimum variance baseline and a perturbation of +0.5
 More generally
-$python my3armbandit.py arg1 arg2
+$python 3-armed_bandit.py arg1 arg2
 where arg1 is one of ['minvar', 'value', 'fixed']
 and arg2 is a real number
 
 The other arguments (save files, parameterization, number of steps, learning
 rate, initial parameters) are to be changed manually in the main function
+By default, these are set to match the simplex plots in the paper's main text:
+softmax parameterization, natural policy gradient, initial theta of [0, 3, 5]
+Use arguments "minvar -0.5", "minvar 0", "minvar 0.5" and "value 0" to reproduce those plots.
 '''
 
 
 import numpy as np
 import sys
-import seaborn as sns
-import math
 import matplotlib.pyplot as plt
-import time
-import ternary #package to install is python-ternary
+import ternary  # package to install is python-ternary
+import os
 
-def plot_trajectories(trajectory_data, title, nocolor=True, theta_0=None, step_size=None):
+# All the parameters
+rewards = np.array([1.0, 0.7, 0])
+num_runs = 15
+num_steps = 1000
+step_size = 0.025
+baseline_type = str(sys.argv[1])  # 'value', 'minvar' or 'constant'
+perturb = float(sys.argv[2])
+optimizer = 'natural'  # 'vanilla' or 'natural'
+parameterization = 'softmax'  # 'softmax' or 'direct' (direct only works with vanilla optimizer)
+init_param = np.array([0.0, 3.0, 5.0])  # this is the same initialization used in the main text
 
+
+def plot_trajectories(trajectory_data, title=None, theta_0=None, step_size=None):
     num_runs = trajectory_data.shape[0]
 
     figure, tax = ternary.figure(scale=1.0)
     tax.boundary(linewidth=2, alpha=0.3)
-    # tax.gridlines(multiple=0.2, color="black")
-    #tax.set_title(title, fontsize=20)
     tax.right_corner_label("R = 1.0", fontsize=15)
     tax.top_corner_label("R = 0.7", fontsize=15)
     tax.left_corner_label("R = 0.0",fontsize=15)
     
-    ## Uncomment this block to plot the true gradient trajectory (only for NPG
-    ## with softmax parameterization for now
+    ## Uncomment this block to plot the true gradient trajectory
+    ## (only for NPG with softmax parameterization)
     #if theta_0 is not None:
     #    L = trajectory_data.shape[1]
     #    true_point = []
@@ -54,14 +60,17 @@ def plot_trajectories(trajectory_data, title, nocolor=True, theta_0=None, step_s
 
     for run in range(num_runs):
         points = trajectory_data[run]
-        tax.plot_colored_trajectory(points, linewidth=3.0, alpha=0.90)
+        tax.plot_colored_trajectory(points, linewidth=2.0, alpha=0.90)
     for run in range(num_runs):
         points = trajectory_data[run]    
         #tax.scatter([points[-1]], marker='o', color='black', s=64, edgecolors='red')
+
     tax.scatter([points[0]], marker='o', color='black', s=64)
     ax = tax.get_axes()
     ax.axis('off')
-    ax.set_aspect(2/np.sqrt(3))
+    # ax.set_aspect(2/np.sqrt(3))  # used to make the plots less wide for the main text
+    tax.set_title(title, size=13, y=1.08)
+
     tax.show()
     return figure, tax
 
@@ -73,13 +82,10 @@ def plot_baseline_stats(data):
     plt.plot(data_max, label='max')
     plt.plot(data_min, label='min')
 
-# @jit(nopython=True)
-def sigmoid(x):
-    return 1 / (1 + np.exp(-x))
-
 def softmax(x):
-    # returns  a vector of probabilities
-    return np.exp(x) / np.sum(np.exp(x))
+    x = x - np.max(x)
+    x = np.exp(x)
+    return x / np.sum(x)
 
 def basis_vector(i):
     vec = np.zeros(3, dtype='float')
@@ -87,13 +93,14 @@ def basis_vector(i):
     return vec
 
 
-''' using code from
-Large-scale Multiclass Support Vector Machine Training via Euclidean Projection onto the Simplex
-Mathieu Blondel, Akinori Fujino, and Naonori Ueda.
-ICPR 2014.
-http://www.mblondel.org/publications/mblondel-icpr2014.pdf
-'''
+
 def project(v, z=1):
+    ''' using code from
+    Large-scale Multiclass Support Vector Machine Training via Euclidean Projection onto the Simplex
+    Mathieu Blondel, Akinori Fujino, and Naonori Ueda.
+    ICPR 2014.
+    http://www.mblondel.org/publications/mblondel-icpr2014.pdf
+    '''
     if np.any(np.isnan(v)): print(v)
     n_features = v.shape[0]
     u = np.sort(v)[::-1]
@@ -110,7 +117,7 @@ class ThreeArmedBandit:
         # This class defines both the environment and the agent
         self.rewards = rewards  # list of rewards
         self.baseline_type = baseline_type #  either 'minvar' or 'value'
-        self.optimizer = optimizer  # in 'vanilla' (usual sgd), 'projected' (projected gd), 'natural' (natural gd)
+        self.optimizer = optimizer  # in 'vanilla' (usual sgd), 'natural' (natural gd)
         self.parameterization = parameterization  # in ('direct', 'softmax')  # only softmax works for now
 
         self.init_param = init_param  # list of initial parameters
@@ -127,11 +134,10 @@ class ThreeArmedBandit:
 
         if self.parameterization == 'direct':
             return project(np.array(test_param))
-        # print(self.parameterization)
         elif self.parameterization == 'softmax':
-            p = project(softmax(np.array(test_param)))
-            # print('getprob', test_param, p)
-
+            clip = 1e-8  # clipping is used for numerical stability and avoiding division by ~0
+            p = np.clip(softmax(np.array(test_param)), clip, 1-clip)
+            p /= np.sum(p)
             return p
 
 
@@ -157,12 +163,12 @@ class ThreeArmedBandit:
                 weight = num * policy_probs[index] / denom
         elif self.parameterization == 'direct':
             weight = self.param
+
         return weight
 
     def get_sgd(self, test_param=None):
         ''' Returns stochastic gradient for current parameter '''
         p = self.get_prob(test_param)
-        p = p / np.sum(p)  # renormalize since we might clip the probabilities
 
         if self.baseline_type == 'minvar':
             b = self.get_optimal_baseline(test_param) + self.perturb_baseline
@@ -182,8 +188,7 @@ class ThreeArmedBandit:
                 grad = onehot - p
 
             if self.optimizer == 'natural':
-                # this is the minimum-norm update
-                # grad = np.ones(3, dtype='float') / (2*p[act]) + 1 / p[act] * basis_vector(act)
+                # this is the minimum-norm solution to F^{-1}(gradient log pi)
                 grad = -np.ones(3, dtype='float') / (3 * p[act]) + 1 / p[act] * basis_vector(act)
         elif self.parameterization == 'direct': 
             if self.optimizer == 'vanilla':
@@ -203,7 +208,6 @@ class ThreeArmedBandit:
         ''' Performs an sgd step on the parameter '''
         self.param = self.param + step_size * self.get_sgd(test_param)
 
-
     def reset(self):
         self.param = self.init_param
 
@@ -213,7 +217,6 @@ def run_experiment(num_runs, num_steps, rewards, step_size, perturb, init_param,
     prob_data = []
     for i_run in range(num_runs):
         bandit = ThreeArmedBandit(rewards, init_param, baseline_type, perturb, optimizer, parameterization)
-
 
         param_seq = []
         prob_seq = []
@@ -234,28 +237,18 @@ def run_experiment(num_runs, num_steps, rewards, step_size, perturb, init_param,
     return param_data, prob_data
 
 if __name__ == "__main__":
-    ## training loop
-    print(sys.argv)
-    rewards = np.array([1.0, 0.7, 0])
-    num_runs = 15 # too much will clutter the simplex plots
-    num_steps = 10000
-    step_size = 0.05
-    baseline_type = str(sys.argv[1]) # value minvar fixed
-    perturb = float(sys.argv[2])
-    optimizer = 'vanilla' #vanilla or natural
-    parameterization = 'softmax' #softmax or direct
+    print("Arguments", sys.argv)
 
-    init_param = np.array([0.0, 0.9, 4.0])  # [0, 0.2, 2]
     if parameterization == 'direct':
         init_param = project(init_param)
+    save_file = None  # change if you need to save the data for the runs (rewards collected)
 
-    save_file = None #'results/param_data'
-
+    # Run the experiment
     param_data, prob_data = run_experiment(num_runs=num_runs,
             num_steps=num_steps, rewards=rewards, parameterization = parameterization, step_size=step_size, perturb=perturb, baseline_type=baseline_type, optimizer=optimizer, init_param=init_param, save_file=save_file)
-    sns.set_context('talk')
 
 
+    # Plot the learning curves: average reward vs. time
     fig = plt.figure()
     plt.grid()
     avg_rewards = []
@@ -266,23 +259,22 @@ if __name__ == "__main__":
             color = 'C0'
         else:
             color = 'red'
-            print('suboptimal seed')
-
         plt.plot(avg_reward_traj, color=color, alpha=0.2)
 
     avg_rewards = np.array(avg_rewards)
-
     mean = np.mean(avg_rewards, axis=0)
     std = np.std(avg_rewards, axis=0)
     plt.plot(np.mean(avg_rewards, axis=0), color='k', linewidth=2)
-    #plt.fill_between(range(len(mean)), mean - std, mean + std, alpha=0.10, color='red')
     plt.ylim(0.95*np.min(rewards),1.05*np.max(rewards))
-    #plt.yscale('symlog')
     plt.ylabel(r"$V^\pi$")
     plt.xlabel('t')
+    title = f"{optimizer} {baseline_type} {perturb}"  # set to None to remove titles
+    plt.title(title)
 
+    os.makedirs('three_armed_bandit_results/', exist_ok=True)
     fig.savefig(f'three_armed_bandit_results/{optimizer}_{baseline_type}_{perturb}_eta={step_size}'.replace('.', ''), bbox_inches='tight')
-    plt.show()
 
-    fig, tax = plot_trajectories(prob_data[:, :, :], "baseline{}".format(perturb), theta_0=init_param, step_size=step_size)
-    fig.savefig(f'three_armed_bandit_results/{optimizer}_{baseline_type}_{perturb}'.replace('.', ''), bbox_inches='tight')
+    # Generate the simplex plots
+    fig, tax = plot_trajectories(prob_data[:, :, :], title=title, theta_0=init_param, step_size=step_size)
+    fig.savefig(f'three_armed_bandit_results/simplex_{optimizer}_{baseline_type}_{perturb}'.replace('.', ''), bbox_inches='tight')
+    plt.show()

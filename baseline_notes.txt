@@ -1,5 +1,12 @@
 
 Notes for the understanding baselines project
+--- Feb 2, 2021
+Todos:
+- IS proof for multi-armed bandit (done)
+- Appendix intro
+- Plots for vanilla PG for MDP (relative perturb and absolute)
+- Simplex plots for vanilla PG on 3-armed bandit
+
 --- Jan 26, 2021
 res/01_25_01_2021/1611557606_ : relative perturbation experiment with vanilla PG.
 
