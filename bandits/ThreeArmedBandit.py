@@ -212,7 +212,7 @@ if __name__ == "__main__":
     step_size = 0.5
     perturb = -0.5
     init_param = np.array([1.0, 1.0, 1.0])  # [0, 0.2, 2] [0, 2,5]
-    print(softmax(init_param))
+    # print(softmax(init_param))
     optimizer = 'vanilla'
     parameterization = 'escort'
     baseline_type = 'minvar'

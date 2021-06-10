@@ -87,6 +87,11 @@ def softmax(x):
     x = np.exp(x)
     return x / np.sum(x)
 
+def escort(x, p=2):
+    # note this is not good for x = 0
+    x = np.power(np.abs(x), p)
+    return x / np.sum(x)
+
 def basis_vector(i):
     vec = np.zeros(3, dtype='float')
     vec[i] = 1
@@ -139,7 +144,10 @@ class ThreeArmedBandit:
             p = np.clip(softmax(np.array(test_param)), clip, 1-clip)
             p /= np.sum(p)
             return p
-
+        elif self.parameterization == 'escort':
+            p = escort(np.array(test_param))
+            p = project(p)
+            return p / np.sum(p)
 
     def get_optimal_baseline(self, test_param=None):
         ''' Returns the optimal baseline '''
@@ -147,11 +155,11 @@ class ThreeArmedBandit:
             test_param = self.param
 
         p = self.get_prob(test_param)
-        baseline = np.sum([self._weight_optimal_baseline(i, p) * self.rewards[i] for i in range(3)])
+        baseline = np.sum([self._weight_optimal_baseline(i, p, test_param) * self.rewards[i] for i in range(3)])
 
         return baseline
 
-    def _weight_optimal_baseline(self, index, policy_probs):
+    def _weight_optimal_baseline(self, index, policy_probs, param):
         if self.parameterization == 'softmax':
             if self.optimizer == 'vanilla':
                 # policy_probs = np.clip(policy_probs, 1e-6, 1)
@@ -163,6 +171,14 @@ class ThreeArmedBandit:
                 weight = num * policy_probs[index] / denom
         elif self.parameterization == 'direct':
             weight = self.param
+        elif self.parameterization == 'escort':
+            if self.optimizer == 'vanilla':
+                p = self.escort_p
+                onehot = np.zeros(3)
+                onehot[index] = 1
+                prob_logprobnorm = p ** 2 / np.linalg.norm(param) ** 2 * \
+                                   np.sum(np.square(np.power(policy_probs, -1 / p) * (onehot - policy_probs)))
+                weight = prob_logprobnorm[index] / np.sum(prob_logprobnorm)
 
         return weight
 
@@ -197,7 +213,15 @@ class ThreeArmedBandit:
                 grad = onehot/p[act]
             else:
                 raise AssertionError('invalid optimizer for direct parameterization')
+        elif self.parameterization == 'escort':
+            if self.optimizer == 'vanilla':
+                pol = self.get_prob(test_param)
 
+                onehot = np.zeros(3)
+                onehot[act] = 1
+                escort_p = self.escort_p
+                grad = np.power(pol, -1/escort_p) * np.sign(self.param) * (onehot - pol)
+                grad = grad * escort_p / np.linalg.norm(self.param, ord=escort_p)
         else:
             raise AssertionError('invalid parameterization or optimizer')
 
