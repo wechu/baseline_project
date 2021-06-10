@@ -47,8 +47,14 @@ def sigmoid(x):
     return 1 / (1 + np.exp(-x))
 
 def softmax(x):
-    # returns  a vector of probabilities
-    return np.exp(x) / np.sum(np.exp(x))
+    x = x - np.max(x)
+    x = np.exp(x)
+    return x / np.sum(x)
+
+def escort(x, p=2):
+    # note this is not good for x = 0
+    x = np.power(np.abs(x), p)
+    return x / np.sum(x)
 
 def basis_vector(i):
     vec = np.zeros(3, dtype='float')
@@ -58,22 +64,19 @@ def basis_vector(i):
 
 # @jit(nopython=True)
 def project(x):
-    # if x < 1e-12:
-    #     return 1e-12
-    # elif x > 1-1e-12:
-    #     return 1-1e-12
-    # else:
-    #     return x
-    # return np.clip(x, 1e-12, 1-1e-12)
-    return np.clip(x, 1e-6, 1-1e-6)
+    return np.clip(x, 1e-8, 1-1e-8)
 
 class ThreeArmedBandit:
-    def __init__(self, rewards, init_param, baseline_type='minvar', perturb_baseline=0.0, optimizer='vanilla', parameterization='softmax', seed=None):
+    def __init__(self, rewards, init_param, baseline_type='minvar', perturb_baseline=0.0, optimizer='vanilla', parameterization='softmax', seed=None, **kwargs):
         # This class defines both the environment and the agent
         self.rewards = rewards  # list of rewards
         self.baseline_type = baseline_type #  either 'minvar' or 'value'
         self.optimizer = optimizer  # in 'vanilla' (usual sgd), 'projected' (projected gd), 'natural' (natural gd)
         self.parameterization = parameterization  # in ('direct', 'softmax')  # only softmax works for now
+
+        if parameterization == 'escort':
+            # self.excort_p = escort
+            self.escort_p = 2.0
 
         self.init_param = init_param  # list of initial parameters
         self.perturb_baseline = perturb_baseline  # how much to add to the baseline
@@ -94,8 +97,11 @@ class ThreeArmedBandit:
             p = project(softmax(np.array(test_param)))
             # print('getprob', test_param, p)
 
-            return p
-
+            return p / np.sum(p)  # renormalize in case of clipping
+        elif self.parameterization == 'escort':
+            p = escort(np.array(test_param))
+            p = project(p)
+            return p / np.sum(p)
 
     def get_optimal_baseline(self, test_param=None):
         ''' Returns the optimal baseline '''
@@ -103,47 +109,63 @@ class ThreeArmedBandit:
             test_param = self.param
 
         p = self.get_prob(test_param)
-        baseline = np.sum([self._weight_optimal_baseline(i, p) * self.rewards[i] for i in range(3)])
+        baseline = np.sum([self._weight_optimal_baseline(i, p, test_param) * self.rewards[i] for i in range(3)])
 
         return baseline
 
-    def _weight_optimal_baseline(self, index, policy_probs):
-        if self.optimizer == 'vanilla':
-            # policy_probs = np.clip(policy_probs, 1e-6, 1)
-            denom = np.sum([policy_probs[index] / policy_probs])
-            weight = 1 / denom
-        elif self.optimizer == 'natural':
-            denom = 1 - np.sum(np.square(policy_probs))
-            num = np.sum(np.square(policy_probs)) - policy_probs[index]**2 + (1-policy_probs[index])**2
-            weight = num * policy_probs[index] / denom
+    def _weight_optimal_baseline(self, index, policy_probs, param):
+        # p_i || \log \pi(i) ||^2_2 / E [ || \log \pi(i) ||^2_2 ]
+        if self.parameterization == 'softmax':
+            if self.optimizer == 'vanilla':
+                # policy_probs = np.clip(policy_probs, 1e-6, 1)
+                denom = np.sum([policy_probs[index] / policy_probs])
+                weight = 1 / denom
+            elif self.optimizer == 'natural':
+                denom = 1 - np.sum(np.square(policy_probs))
+                num = np.sum(np.square(policy_probs)) - policy_probs[index]**2 + (1-policy_probs[index])**2
+                weight = num * policy_probs[index] / denom
+        elif self.parameterization == 'escort':
+            if self.optimizer == 'vanilla':
+                p = self.escort_p
+                onehot = np.zeros(3)
+                onehot[index] = 1
+                prob_logprobnorm = p**2 / np.linalg.norm(param)**2 * \
+                                   np.sum(np.square(np.power(policy_probs, -1 / p) * (onehot - policy_probs)))
+                weight = prob_logprobnorm[index] / np.sum(prob_logprobnorm)
         return weight
 
     def get_sgd(self, test_param=None):
         ''' Returns stochastic gradient for current parameter '''
-        p = self.get_prob(test_param)
-        p = p / np.sum(p)  # renormalize since we might clip the probabilities
+        pol = self.get_prob(test_param)
 
         if self.baseline_type == 'minvar':
             b = self.get_optimal_baseline(test_param) + self.perturb_baseline
             # b = self.get_optimal_baseline(test_param) + self.perturb_baseline
         elif self.baseline_type == 'value':
-            b = np.sum(np.array(self.rewards)*p) + self.perturb_baseline
+            b = np.sum(np.array(self.rewards)*pol) + self.perturb_baseline
         else:
             b = self.perturb_baseline
 
         # act = self.rng.randint(0, 3)
-        act = self.rng.choice([0,1,2], p=p)
+        act = self.rng.choice([0,1,2], p=pol)
         # print("act", act)
         if self.parameterization == 'softmax':
             if self.optimizer == 'vanilla':
                 onehot = np.zeros(3)
                 onehot[act] = 1
-                grad = onehot - p
+                grad = onehot - pol
 
             if self.optimizer == 'natural':
                 # this is the minimum-norm update
                 # grad = np.ones(3, dtype='float') / (2*p[act]) + 1 / p[act] * basis_vector(act)
-                grad = -np.ones(3, dtype='float') / (3 * p[act]) + 1 / p[act] * basis_vector(act)
+                grad = -np.ones(3, dtype='float') / (3 * pol[act]) + 1 / pol[act] * basis_vector(act)
+        elif self.parameterization == 'escort':
+            if self.optimizer == 'vanilla':
+                onehot = np.zeros(3)
+                onehot[act] = 1
+                p = self.escort_p
+                grad = np.power(pol, -1/p) * np.sign(self.param) * (onehot - pol)
+                grad = grad * p / np.linalg.norm(self.param, ord=p)
         else:
             raise AssertionError('invalid parameterization or optimizer')
 
@@ -184,15 +206,15 @@ def run_experiment(num_runs, num_steps, rewards, step_size, perturb, init_param,
 
 if __name__ == "__main__":
     ## training loop
-    rewards = [0.1, 0.07, 0]
+    rewards = [1, 0.7, 0]
     num_runs = 15
     num_steps = 1000
-    step_size = 0.1
-    perturb = -1.0
-    init_param = np.array([0.0, 0.0, 0.0])  # [0, 0.2, 2] [0, 2,5]
+    step_size = 0.5
+    perturb = -0.5
+    init_param = np.array([1.0, 1.0, 1.0])  # [0, 0.2, 2] [0, 2,5]
     print(softmax(init_param))
     optimizer = 'vanilla'
-    parameterization = 'softmax'
+    parameterization = 'escort'
     baseline_type = 'minvar'
     save_file = None #'results/param_data'
 
@@ -265,7 +287,7 @@ if __name__ == "__main__":
     save_ternary_gif(prob_data, "baseline{}".format(perturb), folder_name=subfolder)
 
     quit()
-
+    #
     # import glob
     # from PIL import Image
     #

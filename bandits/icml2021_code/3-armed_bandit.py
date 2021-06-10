@@ -15,7 +15,7 @@ and arg2 is a real number
 The other arguments (save files, parameterization, number of steps, learning
 rate, initial parameters) are to be changed manually in the main function
 By default, these are set to match the simplex plots in the paper's main text:
-softmax parameterization, natural policy gradient, initial theta of [0, 3, 5]
+softmax parameterization, natural policy gradient, initial theta of [0, 3, 5], step size of 0.025
 Use arguments "minvar -0.5", "minvar 0", "minvar 0.5" and "value 0" to reproduce those plots.
 '''
 
@@ -28,7 +28,7 @@ import os
 
 # All the parameters
 rewards = np.array([1.0, 0.7, 0])
-num_runs = 15
+num_runs = 25
 num_steps = 1000
 step_size = 0.025
 baseline_type = str(sys.argv[1])  # 'value', 'minvar' or 'constant'
