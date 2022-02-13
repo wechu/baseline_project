@@ -11,12 +11,12 @@ from bandits.TwoArmedBandit import *
 from bandits.OptimValueFunction import *
 import seaborn as sns
 
-num_runs = 300
-num_steps = 300
+num_runs = 30
+num_steps = 1000
 step_size = 0.1
-perturb = -1
-init_param = 0
-baseline_type = 'minvar'
+perturb = 1
+init_param = -3
+baseline_type = None
 entropy_reg = None
 noise = (1.0, 1.0)
 optimizer = 'natural'

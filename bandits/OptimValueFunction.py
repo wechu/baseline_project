@@ -13,11 +13,11 @@ grid_limit = 10
 grid_step = 0.01
 grid = np.arange(-grid_limit, grid_limit+grid_step/2, grid_step)
 
-@jit
+# @jit
 def project_to_grid(x, grid_limit, grid_step):
     # returns the closest x-value on the grid
     return np.clip(round(x / grid_step) * grid_step, -grid_limit, grid_limit)
-@jit
+# @jit
 def convert_to_index(x, grid, grid_step):
 #     returns the index in the grid of x. (Assumes that x is in the grid)
     return np.where(np.abs(grid - x) < grid_step/10)[0][0]
